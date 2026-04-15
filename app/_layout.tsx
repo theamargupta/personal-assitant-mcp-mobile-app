@@ -1,49 +1,62 @@
 import { useEffect } from 'react'
-import { Stack, useRouter } from 'expo-router'
-import * as Notifications from 'expo-notifications'
+import { Stack, useRouter, Redirect } from 'expo-router'
 import { AuthProvider, useAuth } from '@/lib/auth'
-import { startSmsPolling, registerBackgroundSmsCheck, requestPermissions } from '@/lib/sms-listener'
+import Constants from 'expo-constants'
+
+const isExpoGo = Constants.executionEnvironment === 'storeClient'
 
 function RootNavigator() {
   const { session, loading } = useAuth()
   const router = useRouter()
 
-  // Handle notification taps — navigate to categorize screen
+  // Set up notifications + SMS only in dev builds (skip Expo Go)
   useEffect(() => {
-    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
-      const data = response.notification.request.content.data
-      if (data?.screen === 'categorize' && data?.transactionId) {
-        router.push(`/categorize/${data.transactionId}`)
+    if (!session || isExpoGo) return
+
+    let cleanup: (() => void) | undefined
+
+    ;(async () => {
+      try {
+        const { requestPermissions, startSmsPolling, registerBackgroundSmsCheck } =
+          require('@/lib/sms-listener')
+
+        await requestPermissions()
+        await registerBackgroundSmsCheck()
+        cleanup = startSmsPolling()
+
+        const Notifications = require('expo-notifications')
+        const subscription = Notifications.addNotificationResponseReceivedListener(
+          (response: any) => {
+            const data = response.notification.request.content.data
+            if (data?.screen === 'categorize' && data?.transactionId) {
+              router.push(`/categorize/${data.transactionId}` as any)
+            }
+          }
+        )
+
+        cleanup = () => {
+          subscription.remove()
+        }
+      } catch {
+        // Native modules not available
       }
-    })
+    })()
 
-    return () => subscription.remove()
-  }, [router])
-
-  // Start SMS polling when authenticated
-  useEffect(() => {
-    if (!session) return
-
-    requestPermissions()
-    registerBackgroundSmsCheck()
-    const cleanup = startSmsPolling()
-
-    return cleanup
-  }, [session])
+    return () => cleanup?.()
+  }, [session, router])
 
   if (loading) return null
 
+  if (!session) {
+    return <Redirect href="/(auth)/login" />
+  }
+
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      {session ? (
-        <>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="categorize/[id]" options={{ presentation: 'modal', headerShown: true, title: 'Categorize' }} />
-          <Stack.Screen name="add" options={{ presentation: 'modal', headerShown: true, title: 'Add Expense' }} />
-        </>
-      ) : (
-        <Stack.Screen name="(auth)" />
-      )}
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="categorize/[id]" options={{ presentation: 'modal', headerShown: true, title: 'Categorize' }} />
+      <Stack.Screen name="add" options={{ presentation: 'modal', headerShown: true, title: 'Add Expense' }} />
     </Stack>
   )
 }

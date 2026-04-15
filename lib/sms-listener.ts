@@ -1,28 +1,42 @@
 import { Platform } from 'react-native'
-import * as Notifications from 'expo-notifications'
-import * as TaskManager from 'expo-task-manager'
-import SmsAndroid from 'react-native-get-sms-android'
 import { parseSms, isPaymentSms } from './sms-parser'
 import { api } from './api'
 
-const SMS_TASK_NAME = 'PA_SMS_LISTENER'
+// All native modules (Notifications, TaskManager, SmsAndroid) are lazy-loaded
+// to avoid crashes in Expo Go where they're not available.
 
-// Configure notification behavior
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-})
+let notificationsModule: typeof import('expo-notifications') | null = null
+
+async function getNotifications() {
+  if (!notificationsModule) {
+    try {
+      notificationsModule = await import('expo-notifications')
+      notificationsModule.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+        }),
+      })
+    } catch {
+      console.warn('expo-notifications not available')
+    }
+  }
+  return notificationsModule
+}
 
 export async function requestPermissions(): Promise<boolean> {
   if (Platform.OS !== 'android') return false
 
-  const { status } = await Notifications.requestPermissionsAsync()
-  return status === 'granted'
+  try {
+    const Notifications = await getNotifications()
+    if (!Notifications) return false
+    const { status } = await Notifications.requestPermissionsAsync()
+    return status === 'granted'
+  } catch {
+    console.warn('Notification permissions not available')
+    return false
+  }
 }
 
 export async function sendCategorizeNotification(
@@ -31,14 +45,20 @@ export async function sendCategorizeNotification(
   merchant: string,
   sourceApp: string
 ) {
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: 'New Spend Detected',
-      body: `₹${amount} to ${merchant} via ${sourceApp}`,
-      data: { transactionId, screen: 'categorize' },
-    },
-    trigger: null, // immediate
-  })
+  try {
+    const Notifications = await getNotifications()
+    if (!Notifications) return
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'New Spend Detected',
+        body: `₹${amount} to ${merchant} via ${sourceApp}`,
+        data: { transactionId, screen: 'categorize' },
+      },
+      trigger: null,
+    })
+  } catch (error) {
+    console.warn('Failed to send notification:', error)
+  }
 }
 
 export async function processIncomingSms(sender: string, body: string) {
@@ -48,7 +68,6 @@ export async function processIncomingSms(sender: string, body: string) {
   if (!parsed) return
 
   try {
-    // Create uncategorized transaction on server
     const transaction = await api.createTransaction({
       amount: parsed.amount,
       merchant: parsed.merchant,
@@ -57,7 +76,6 @@ export async function processIncomingSms(sender: string, body: string) {
       is_auto_detected: true,
     }) as { id: string }
 
-    // Fire notification
     await sendCategorizeNotification(
       transaction.id,
       parsed.amount,
@@ -69,12 +87,10 @@ export async function processIncomingSms(sender: string, body: string) {
   }
 }
 
-// Poll for new SMS (since react-native-get-sms-android doesn't have a real-time listener,
-// we check for recent SMS periodically via background fetch)
 let lastCheckedTimestamp = Date.now()
 
 export function startSmsPolling() {
-  // Check every 30 seconds when app is foregrounded
+  // SMS reading only works in dev builds, not Expo Go
   const interval = setInterval(() => {
     checkRecentSms()
   }, 30000)
@@ -83,53 +99,55 @@ export function startSmsPolling() {
 }
 
 function checkRecentSms() {
-  const filter = {
-    box: 'inbox',
-    minDate: lastCheckedTimestamp,
-    maxCount: 10,
-  }
+  try {
+    const SmsAndroid = require('react-native-get-sms-android').default
+    const filter = {
+      box: 'inbox',
+      minDate: lastCheckedTimestamp,
+      maxCount: 10,
+    }
 
-  SmsAndroid.list(
-    JSON.stringify(filter),
-    (fail: string) => console.error('SMS read failed:', fail),
-    (_count: number, smsList: string) => {
-      const messages = JSON.parse(smsList) as Array<{
-        address: string
-        body: string
-        date: number
-      }>
+    SmsAndroid.list(
+      JSON.stringify(filter),
+      (fail: string) => console.error('SMS read failed:', fail),
+      (_count: number, smsList: string) => {
+        const messages = JSON.parse(smsList) as Array<{
+          address: string
+          body: string
+          date: number
+        }>
 
-      for (const msg of messages) {
-        if (msg.date > lastCheckedTimestamp) {
-          processIncomingSms(msg.address, msg.body)
+        for (const msg of messages) {
+          if (msg.date > lastCheckedTimestamp) {
+            processIncomingSms(msg.address, msg.body)
+          }
+        }
+
+        if (messages.length > 0) {
+          lastCheckedTimestamp = Math.max(...messages.map(m => m.date))
         }
       }
-
-      if (messages.length > 0) {
-        lastCheckedTimestamp = Math.max(...messages.map(m => m.date))
-      }
-    }
-  )
+    )
+  } catch {
+    // SMS module not available (Expo Go)
+  }
 }
 
-// Register background task for when app is not in foreground
-TaskManager.defineTask(SMS_TASK_NAME, async () => {
-  try {
-    checkRecentSms()
-    return TaskManager.BackgroundFetchResult.NewData
-  } catch {
-    return TaskManager.BackgroundFetchResult.Failed
-  }
-})
-
 export async function registerBackgroundSmsCheck() {
-  const isRegistered = await TaskManager.isTaskRegisteredAsync(SMS_TASK_NAME)
-  if (!isRegistered) {
-    const BackgroundFetch = require('expo-background-fetch')
-    await BackgroundFetch.registerTaskAsync(SMS_TASK_NAME, {
-      minimumInterval: 60, // check every ~1 minute
-      stopOnTerminate: false,
-      startOnBoot: true,
-    })
+  try {
+    const TaskManager = require('expo-task-manager')
+    const SMS_TASK_NAME = 'PA_SMS_LISTENER'
+
+    const isRegistered = await TaskManager.isTaskRegisteredAsync(SMS_TASK_NAME)
+    if (!isRegistered) {
+      const BackgroundTask = require('expo-background-fetch')
+      await BackgroundTask.registerTaskAsync(SMS_TASK_NAME, {
+        minimumInterval: 60,
+        stopOnTerminate: false,
+        startOnBoot: true,
+      })
+    }
+  } catch {
+    console.warn('Background task registration not available')
   }
 }
