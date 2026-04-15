@@ -1,8 +1,9 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useState } from 'react'
 import { CategoryPicker } from '@/components/CategoryPicker'
 import { api } from '@/lib/api'
+import { colors, spacing, radius, fontSize, fontWeight } from '@/constants/theme'
 
 export default function CategorizeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -32,9 +33,15 @@ export default function CategorizeScreen() {
     }
   }
 
+  const canSave = !!selectedCategory && !saving
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Categorize Spend</Text>
+    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+      <Text style={styles.title}>Categorize</Text>
+
+      {selectedCategory && (
+        <Text style={styles.selectedLabel}>{categoryName}</Text>
+      )}
 
       <CategoryPicker
         selected={selectedCategory}
@@ -44,51 +51,71 @@ export default function CategorizeScreen() {
         }}
       />
 
-      {selectedCategory && (
-        <Text style={styles.selectedLabel}>Selected: {categoryName}</Text>
-      )}
-
       <TextInput
         style={styles.input}
-        placeholder="Add a note (optional)... e.g. dinner with friends"
+        placeholder="Add a note (optional)"
+        placeholderTextColor={colors.placeholder}
         value={note}
         onChangeText={setNote}
         multiline
         maxLength={500}
+        selectionColor={colors.primary}
+        textAlignVertical="top"
       />
 
       <TouchableOpacity
-        style={[styles.saveButton, saving && styles.disabled]}
+        style={[styles.saveButton, !canSave && styles.disabled]}
         onPress={handleSave}
-        disabled={saving}
+        disabled={!canSave}
+        activeOpacity={0.8}
       >
         <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save'}</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', padding: 16 },
-  title: { fontSize: 22, fontWeight: '700', marginBottom: 16, color: '#111827' },
-  selectedLabel: { fontSize: 14, color: '#3b82f6', marginVertical: 8, fontWeight: '600' },
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    padding: spacing.lg,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: fontWeight.bold,
+    color: colors.textPrimary,
+    marginBottom: spacing.lg,
+  },
+  selectedLabel: {
+    fontSize: fontSize.base,
+    color: colors.primary,
+    marginBottom: spacing.sm,
+    fontWeight: fontWeight.semibold,
+  },
   input: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 15,
-    marginVertical: 12,
+    backgroundColor: colors.inputBg,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    fontSize: fontSize.base,
+    color: colors.textPrimary,
+    marginTop: spacing.lg,
     minHeight: 60,
-    textAlignVertical: 'top',
   },
   saveButton: {
-    backgroundColor: '#3b82f6',
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: colors.primary,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: spacing.xl,
+    marginBottom: spacing['4xl'],
   },
-  disabled: { opacity: 0.5 },
-  saveText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  disabled: {
+    opacity: 0.4,
+  },
+  saveText: {
+    color: colors.textPrimary,
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.bold,
+  },
 })

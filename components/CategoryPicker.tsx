@@ -1,11 +1,13 @@
-import { View, Text, TouchableOpacity, StyleSheet, FlatList } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
+import { colors, spacing, radius, fontSize, fontWeight } from '@/constants/theme'
 
 interface Category {
   id: string
   name: string
   icon: string
+  color?: string
   is_preset: boolean
 }
 
@@ -18,43 +20,75 @@ export function CategoryPicker({ selected, onSelect }: Props) {
   const [categories, setCategories] = useState<Category[]>([])
 
   useEffect(() => {
-    api.listCategories().then(res => setCategories(res.categories))
+    api.listCategories().then(res => setCategories(res.categories)).catch(() => {})
   }, [])
 
   return (
-    <FlatList
-      data={categories}
-      numColumns={4}
-      keyExtractor={item => item.id}
-      contentContainerStyle={styles.grid}
-      renderItem={({ item }) => (
-        <TouchableOpacity
-          style={[styles.item, selected === item.id && styles.selected]}
-          onPress={() => onSelect(item.id, item.name)}
-        >
-          <Text style={styles.icon}>{item.icon}</Text>
-          <Text style={styles.label} numberOfLines={1}>{item.name}</Text>
-        </TouchableOpacity>
-      )}
-    />
+    <View style={styles.grid}>
+      {categories.map(item => {
+        const isSelected = selected === item.id
+        return (
+          <TouchableOpacity
+            key={item.id}
+            style={[
+              styles.item,
+              isSelected && styles.selected,
+            ]}
+            onPress={() => onSelect(item.id, item.name)}
+            activeOpacity={0.7}
+          >
+            {item.color && (
+              <View style={[styles.colorDot, { backgroundColor: item.color }]} />
+            )}
+            <Text style={styles.icon}>{item.icon}</Text>
+            <Text style={[styles.label, isSelected && styles.labelSelected]} numberOfLines={1}>
+              {item.name}
+            </Text>
+          </TouchableOpacity>
+        )
+      })}
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  grid: { padding: 8 },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
   item: {
-    flex: 1,
+    width: '23%',
     alignItems: 'center',
-    padding: 12,
-    margin: 4,
-    borderRadius: 12,
-    backgroundColor: '#f3f4f6',
+    padding: spacing.md,
+    margin: '1%',
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    position: 'relative',
   },
   selected: {
-    backgroundColor: '#dbeafe',
+    backgroundColor: colors.primaryGlow,
     borderWidth: 2,
-    borderColor: '#3b82f6',
+    borderColor: colors.primary,
   },
-  icon: { fontSize: 28 },
-  label: { fontSize: 11, marginTop: 4, color: '#374151' },
+  colorDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  icon: {
+    fontSize: 24,
+  },
+  label: {
+    fontSize: fontSize.xs,
+    marginTop: spacing.xs,
+    color: colors.textSecondary,
+  },
+  labelSelected: {
+    color: colors.textPrimary,
+  },
 })
