@@ -2,6 +2,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'reac
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { useAuth } from '@/lib/auth'
+import { colors, spacing, radius, fontSize, fontWeight } from '@/constants/theme'
 
 export default function SignupScreen() {
   const { signUp } = useAuth()
@@ -9,6 +10,8 @@ export default function SignupScreen() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [emailFocused, setEmailFocused] = useState(false)
+  const [passwordFocused, setPasswordFocused] = useState(false)
 
   const handleSignup = async () => {
     if (!email || !password) {
@@ -32,46 +35,114 @@ export default function SignupScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Create Account</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Create Account</Text>
+        <Text style={styles.subtitle}>Start tracking your finances</Text>
+      </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+      <View style={styles.form}>
+        <TextInput
+          style={[styles.input, emailFocused && styles.inputFocused]}
+          placeholder="Email"
+          placeholderTextColor={colors.placeholder}
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          onFocus={() => setEmailFocused(true)}
+          onBlur={() => setEmailFocused(false)}
+        />
+        <TextInput
+          style={[styles.input, passwordFocused && styles.inputFocused]}
+          placeholder="Password"
+          placeholderTextColor={colors.placeholder}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          onFocus={() => setPasswordFocused(true)}
+          onBlur={() => setPasswordFocused(false)}
+        />
 
-      <TouchableOpacity style={styles.button} onPress={handleSignup} disabled={loading}>
-        <Text style={styles.buttonText}>{loading ? 'Creating...' : 'Sign Up'}</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
+          onPress={handleSignup}
+          disabled={loading}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.buttonText}>{loading ? 'Creating...' : 'Sign Up'}</Text>
+        </TouchableOpacity>
+      </View>
 
-      <TouchableOpacity onPress={() => router.back()}>
-        <Text style={styles.link}>Already have an account? Log In</Text>
+      <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
+        <Text style={styles.linkText}>
+          Already have an account?{' '}
+          <Text style={styles.linkHighlight}>Log In</Text>
+        </Text>
       </TouchableOpacity>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
-  title: { fontSize: 28, fontWeight: '800', color: '#111827', textAlign: 'center', marginBottom: 32 },
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing['2xl'],
+    backgroundColor: colors.bg,
+  },
+  header: {
+    marginBottom: spacing['4xl'],
+  },
+  title: {
+    fontSize: fontSize.xl,
+    fontWeight: fontWeight.bold,
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: fontSize.base,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+  },
+  form: {
+    marginBottom: spacing['2xl'],
+  },
   input: {
-    borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12,
-    padding: 14, fontSize: 15, marginBottom: 12,
+    backgroundColor: colors.inputBg,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    fontSize: fontSize.base,
+    color: colors.textPrimary,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  inputFocused: {
+    borderColor: colors.inputFocusBorder,
   },
   button: {
-    backgroundColor: '#3b82f6', padding: 16, borderRadius: 12,
-    alignItems: 'center', marginTop: 8,
+    backgroundColor: colors.primary,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    marginTop: spacing.sm,
   },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  link: { color: '#3b82f6', textAlign: 'center', marginTop: 16, fontSize: 14 },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  buttonText: {
+    color: colors.textPrimary,
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.bold,
+  },
+  linkText: {
+    color: colors.textMuted,
+    textAlign: 'center',
+    fontSize: fontSize.sm,
+  },
+  linkHighlight: {
+    color: colors.primary,
+    fontWeight: fontWeight.semibold,
+  },
 })
