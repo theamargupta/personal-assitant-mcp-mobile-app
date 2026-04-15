@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native'
+import { colors, spacing, radius, fontSize, fontWeight, CATEGORIES } from '@/constants/theme'
 
 interface Props {
   amount: number
@@ -9,16 +10,23 @@ interface Props {
   note: string | null
 }
 
+function getCategoryColor(categoryName: string): string {
+  const found = CATEGORIES.find((c) => c.key === categoryName)
+  return found?.color || colors.textMuted
+}
+
 export function TransactionCard({ amount, merchant, category, icon, date, note }: Props) {
+  const dotColor = getCategoryColor(category)
+
   return (
     <View style={styles.card}>
-      <Text style={styles.icon}>{icon}</Text>
+      <View style={[styles.dot, { backgroundColor: dotColor }]} />
       <View style={styles.info}>
-        <Text style={styles.merchant}>{merchant || 'Unknown'}</Text>
+        <Text style={styles.merchant} numberOfLines={1}>{merchant || 'Unknown'}</Text>
         <Text style={styles.meta}>{category} · {date}</Text>
-        {note && <Text style={styles.note}>{note}</Text>}
+        {note ? <Text style={styles.note} numberOfLines={1}>{note}</Text> : null}
       </View>
-      <Text style={styles.amount}>₹{amount}</Text>
+      <Text style={styles.amount}>₹{amount.toLocaleString('en-IN')}</Text>
     </View>
   )
 }
@@ -27,17 +35,43 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    marginHorizontal: 16,
-    marginVertical: 4,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    elevation: 1,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.lg,
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
   },
-  icon: { fontSize: 28, marginRight: 12 },
-  info: { flex: 1 },
-  merchant: { fontSize: 15, fontWeight: '600', color: '#111827' },
-  meta: { fontSize: 12, color: '#6b7280', marginTop: 2 },
-  note: { fontSize: 12, color: '#9ca3af', marginTop: 2, fontStyle: 'italic' },
-  amount: { fontSize: 16, fontWeight: '700', color: '#ef4444' },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: spacing.md,
+  },
+  info: {
+    flex: 1,
+  },
+  merchant: {
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.semibold,
+    color: colors.textPrimary,
+  },
+  meta: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  note: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
+  amount: {
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.bold,
+    color: colors.expense,
+  },
 })

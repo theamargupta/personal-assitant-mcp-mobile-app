@@ -1,10 +1,11 @@
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { api } from '@/lib/api'
 import { SpendingSummary } from '@/components/SpendingSummary'
 import { TransactionCard } from '@/components/TransactionCard'
+import { colors, spacing, fontSize, fontWeight, radius } from '@/constants/theme'
 
 export default function HomeScreen() {
   const router = useRouter()
@@ -13,7 +14,6 @@ export default function HomeScreen() {
 
   const loadData = async () => {
     try {
-      // Get this week's transactions
       const now = new Date()
       const weekAgo = new Date(now)
       weekAgo.setDate(weekAgo.getDate() - 7)
@@ -28,9 +28,8 @@ export default function HomeScreen() {
       const result = txResult as { transactions: any[]; total: number }
       setTransactions(result.transactions || [])
 
-      // Calculate summary from transactions
       const total = result.transactions.reduce((sum: number, t: any) => sum + Number(t.amount), 0)
-      const catMap = new Map<string, { name: string; icon: string; amount: number }>()
+      const catMap = new Map<string, { name: string; icon: string; amount: number; color?: string }>()
       for (const t of result.transactions) {
         const name = t.spending_categories?.name || 'Other'
         const icon = t.spending_categories?.icon || '💰'
@@ -63,9 +62,6 @@ export default function HomeScreen() {
             />
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Recent</Text>
-              <TouchableOpacity onPress={() => router.push('/add')}>
-                <Text style={styles.addButton}>+ Add</Text>
-              </TouchableOpacity>
             </View>
           </>
         }
@@ -83,20 +79,55 @@ export default function HomeScreen() {
           <Text style={styles.empty}>No transactions yet. Spend something!</Text>
         }
       />
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => router.push('/add')}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.fabText}>+</Text>
+      </TouchableOpacity>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 8,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
   },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  addButton: { fontSize: 15, fontWeight: '700', color: '#3b82f6' },
-  empty: { textAlign: 'center', color: '#9ca3af', marginTop: 40, fontSize: 15 },
+  sectionTitle: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
+    color: colors.textPrimary,
+  },
+  empty: {
+    textAlign: 'center',
+    color: colors.textMuted,
+    marginTop: spacing['4xl'],
+    fontSize: fontSize.base,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fabText: {
+    fontSize: fontSize.xl,
+    color: colors.textPrimary,
+    fontWeight: fontWeight.bold,
+    lineHeight: 26,
+  },
 })
