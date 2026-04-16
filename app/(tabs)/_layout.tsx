@@ -12,6 +12,8 @@ function TabBarIcon(props: {
 }
 
 export default function TabLayout() {
+  const headerShown = useClientOnlyValue(false, true)
+
   return (
     <Tabs
       screenOptions={{
@@ -27,7 +29,7 @@ export default function TabLayout() {
         },
         headerTintColor: colors.textPrimary,
         headerShadowVisible: false,
-        headerShown: useClientOnlyValue(false, true),
+        headerShown,
       }}>
       <Tabs.Screen
         name="index"
@@ -37,10 +39,31 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="two"
+        name="habits"
         options={{
-          title: 'History',
-          tabBarIcon: ({ color }) => <TabBarIcon name="history" color={color} />,
+          title: 'Habits',
+          tabBarIcon: ({ color }) => <TabBarIcon name="repeat" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="tasks"
+        options={{
+          title: 'Tasks',
+          tabBarIcon: ({ color }) => <TabBarIcon name="check-square" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="finance"
+        options={{
+          title: 'Finance',
+          tabBarIcon: ({ color }) => <TabBarIcon name="credit-card" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="goals"
+        options={{
+          title: 'Goals',
+          tabBarIcon: ({ color }) => <TabBarIcon name="bullseye" color={color} />,
         }}
       />
     </Tabs>

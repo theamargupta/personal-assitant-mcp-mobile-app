@@ -1,13 +1,40 @@
 import { useEffect } from 'react'
-import { Stack, useRouter, Redirect } from 'expo-router'
+import { View, StyleSheet } from 'react-native'
+import { Stack, useRouter, useSegments } from 'expo-router'
+import * as SplashScreen from 'expo-splash-screen'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import Constants from 'expo-constants'
+import { colors } from '@/constants/theme'
+
+SplashScreen.preventAutoHideAsync().catch(() => undefined)
 
 const isExpoGo = Constants.executionEnvironment === 'storeClient'
 
 function RootNavigator() {
   const { session, loading } = useAuth()
   const router = useRouter()
+  const segments = useSegments()
+
+  useEffect(() => {
+    if (!loading) {
+      SplashScreen.hideAsync().catch(() => undefined)
+    }
+  }, [loading])
+
+  // Must keep the root Stack mounted so /login and /(tabs) can actually render.
+  useEffect(() => {
+    if (loading) return
+
+    const root = segments[0]
+
+    if (!session) {
+      if (root !== '(auth)') {
+        router.replace('/login')
+      }
+    } else if (root === '(auth)') {
+      router.replace('/')
+    }
+  }, [session, loading, segments, router])
 
   // Set up notifications + SMS only in dev builds (skip Expo Go)
   useEffect(() => {
@@ -45,21 +72,72 @@ function RootNavigator() {
     return () => cleanup?.()
   }, [session, router])
 
-  if (loading) return null
-
-  if (!session) {
-    return <Redirect href="/(auth)/login" />
+  if (loading) {
+    return <View style={styles.splash} />
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="categorize/[id]" options={{ presentation: 'modal', headerShown: true, title: 'Categorize' }} />
-      <Stack.Screen name="add" options={{ presentation: 'modal', headerShown: true, title: 'Add Expense' }} />
-    </Stack>
+    <View style={styles.root}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="categorize/[id]" options={{ presentation: 'modal', headerShown: true, title: 'Categorize' }} />
+        <Stack.Screen name="add" options={{ presentation: 'modal', headerShown: true, title: 'Add Expense' }} />
+        <Stack.Screen
+          name="add-habit"
+          options={{
+            presentation: 'modal',
+            headerShown: true,
+            title: 'New Habit',
+            headerStyle: { backgroundColor: colors.bg },
+            headerTintColor: colors.textPrimary,
+          }}
+        />
+        <Stack.Screen
+          name="add-task"
+          options={{
+            presentation: 'modal',
+            headerShown: true,
+            title: 'New Task',
+            headerStyle: { backgroundColor: colors.bg },
+            headerTintColor: colors.textPrimary,
+          }}
+        />
+        <Stack.Screen
+          name="add-goal"
+          options={{
+            presentation: 'modal',
+            headerShown: true,
+            title: 'New Goal',
+            headerStyle: { backgroundColor: colors.bg },
+            headerTintColor: colors.textPrimary,
+          }}
+        />
+        <Stack.Screen
+          name="review"
+          options={{
+            presentation: 'modal',
+            headerShown: true,
+            title: 'Review',
+            headerStyle: { backgroundColor: colors.bg },
+            headerTintColor: colors.textPrimary,
+          }}
+        />
+      </Stack>
+    </View>
   )
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  splash: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+})
 
 export default function RootLayout() {
   return (
