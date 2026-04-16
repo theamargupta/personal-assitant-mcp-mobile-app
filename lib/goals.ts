@@ -264,3 +264,35 @@ export async function updateGoalStatus(goalId: string, status: GoalStatus): Prom
 
   if (error) throw error
 }
+
+export async function updateGoal(
+  goalId: string,
+  updates: Partial<{
+    title: string
+    description: string
+    target_value: number
+    end_date: string
+    start_date: string
+    metric_type: MetricType
+  }>
+): Promise<void> {
+  const userId = await getUserId()
+  const { error } = await supabase
+    .from('goals')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', goalId)
+    .eq('user_id', userId)
+  if (error) throw error
+}
+
+export async function deleteGoal(goalId: string): Promise<void> {
+  const userId = await getUserId()
+  // Delete milestones first (CASCADE should handle but being explicit).
+  await supabase.from('goal_milestones').delete().eq('goal_id', goalId)
+  const { error } = await supabase
+    .from('goals')
+    .delete()
+    .eq('id', goalId)
+    .eq('user_id', userId)
+  if (error) throw error
+}

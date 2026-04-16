@@ -17,8 +17,18 @@ import { GlassCard } from '@/components/ui/GlassCard'
 import { Haptic } from '@/components/ui/Haptic'
 import { ProgressRing } from '@/components/ui/ProgressRing'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { EditGoalSheet } from '@/components/sheets/EditGoalSheet'
 import { colors, spacing, radius, fontSize, fontWeight, duration } from '@/constants/theme'
-import { listGoals, toggleMilestone, type GoalStatus, type GoalWithProgress } from '@/lib/goals'
+import {
+  listGoals,
+  toggleMilestone,
+  updateGoalStatus,
+  type GoalStatus,
+  type GoalWithProgress,
+} from '@/lib/goals'
+import { useRef, type ReactNode } from 'react'
+import { Animated, PanResponder, type GestureResponderEvent, type PanResponderGestureState } from 'react-native'
+import * as Haptics from 'expo-haptics'
 
 const TAB_BAR_CLEARANCE = 170
 const FILTERS = ['Active', 'Completed', 'All'] as const
@@ -36,6 +46,7 @@ export default function GoalsScreen() {
   const [goals, setGoals] = useState<GoalWithProgress[]>([])
   const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState<GoalWithProgress | null>(null)
 
   const loadData = async () => {
     setLoading(true)
@@ -62,6 +73,15 @@ export default function GoalsScreen() {
       await loadData()
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Unable to update milestone')
+    }
+  }
+
+  const handleCompleteGoal = async (goalId: string) => {
+    try {
+      await updateGoalStatus(goalId, 'completed')
+      await loadData()
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Unable to complete goal')
     }
   }
 
@@ -150,10 +170,13 @@ export default function GoalsScreen() {
         ) : (
           goals.map((item, idx) => {
             const expanded = expandedGoalId === item.id
-            return (
-              <View key={item.id} style={styles.goalWrap}>
-                <Haptic haptic="selection" onPress={() => setExpandedGoalId(expanded ? null : item.id)}>
-                  <GlassCard padding={spacing.lg} glow={item.status === 'active' && item.progress_pct >= 75}>
+            const card = (
+              <Haptic
+                haptic="selection"
+                onPress={() => setExpandedGoalId(expanded ? null : item.id)}
+                onLongPress={() => setEditing(item)}
+              >
+                <GlassCard padding={spacing.lg} glow={item.status === 'active' && item.progress_pct >= 75}>
                     <View style={styles.goalRow}>
                       <ProgressRing
                         progress={Math.min(1, (item.progress_pct || 0) / 100)}
@@ -220,6 +243,17 @@ export default function GoalsScreen() {
                     ) : null}
                   </GlassCard>
                 </Haptic>
+            )
+
+            return (
+              <View key={item.id} style={styles.goalWrap}>
+                {item.status === 'active' ? (
+                  <SwipeToCompleteRow onComplete={() => handleCompleteGoal(item.id)}>
+                    {card}
+                  </SwipeToCompleteRow>
+                ) : (
+                  card
+                )}
               </View>
             )
           })
@@ -234,7 +268,81 @@ export default function GoalsScreen() {
       >
         <FontAwesome name="plus" size={18} color={colors.textPrimary} />
       </Haptic>
+
+      <EditGoalSheet goal={editing} onClose={() => setEditing(null)} onMutated={loadData} />
     </Screen>
+  )
+}
+
+const SWIPE_COMPLETE = 96
+const SWIPE_FIRE = 80
+
+function SwipeToCompleteRow({
+  children,
+  onComplete,
+}: {
+  children: ReactNode
+  onComplete: () => void
+}) {
+  const translateX = useRef(new Animated.Value(0)).current
+  const fired = useRef(false)
+
+  const reset = () => {
+    fired.current = false
+    Animated.spring(translateX, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start()
+  }
+
+  const onMove = (_: GestureResponderEvent, g: PanResponderGestureState) => {
+    if (g.dx > 0) {
+      if (g.dx > SWIPE_COMPLETE && !fired.current) {
+        fired.current = true
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+      }
+      translateX.setValue(Math.min(SWIPE_COMPLETE + 20, g.dx))
+    }
+  }
+
+  const onRelease = (_: GestureResponderEvent, g: PanResponderGestureState) => {
+    if (g.dx > SWIPE_FIRE) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined)
+      Animated.timing(translateX, {
+        toValue: 360,
+        duration: 180,
+        useNativeDriver: true,
+      }).start(() => {
+        onComplete()
+        translateX.setValue(0)
+        fired.current = false
+      })
+    } else {
+      reset()
+    }
+  }
+
+  const pan = PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) =>
+      Math.abs(g.dx) > Math.abs(g.dy) && Math.abs(g.dx) > 8,
+    onPanResponderMove: onMove,
+    onPanResponderRelease: onRelease,
+    onPanResponderTerminate: reset,
+  })
+
+  const iconOpacity = translateX.interpolate({
+    inputRange: [0, SWIPE_FIRE, SWIPE_COMPLETE],
+    outputRange: [0, 0.7, 1],
+    extrapolate: 'clamp',
+  })
+
+  return (
+    <View style={styles.swipeRoot}>
+      <Animated.View style={[styles.swipeAction, { opacity: iconOpacity }]}>
+        <FontAwesome name="check" size={18} color={colors.textPrimary} />
+        <Text style={styles.swipeActionText}>Complete</Text>
+      </Animated.View>
+      <Animated.View style={{ transform: [{ translateX }] }} {...pan.panHandlers}>
+        {children}
+      </Animated.View>
+    </View>
   )
 }
 
@@ -324,6 +432,27 @@ const styles = StyleSheet.create({
   goalWrap: {
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.sm,
+  },
+  swipeRoot: {
+    position: 'relative',
+  },
+  swipeAction: {
+    position: 'absolute',
+    left: 0,
+    top: 4,
+    bottom: 4,
+    width: 120,
+    borderRadius: radius.lg,
+    backgroundColor: colors.income,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  swipeActionText: {
+    color: colors.textPrimary,
+    fontWeight: fontWeight.bold,
+    fontSize: fontSize.sm,
   },
   goalRow: {
     flexDirection: 'row',

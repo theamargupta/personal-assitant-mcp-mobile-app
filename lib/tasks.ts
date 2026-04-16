@@ -46,7 +46,7 @@ export async function createTask(input: {
     .select('*')
     .single()
 
-  if (error) throw error
+  if (error) throw new Error(error.message || 'createTask failed')
   return data as Task
 }
 
@@ -65,7 +65,7 @@ export async function listTasks(filters?: {
     .order('created_at', { ascending: false })
     .limit(filters?.limit || 50)
 
-  if (error) throw error
+  if (error) throw new Error(error.message || 'listTasks failed')
   return { tasks: (data || []) as Task[], total: count || 0 }
 }
 
@@ -85,7 +85,7 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus): Prom
     .select('*')
     .single()
 
-  if (error) throw error
+  if (error) throw new Error(error.message || 'updateTaskStatus failed')
   return data as Task
 }
 
@@ -108,12 +108,12 @@ export async function updateTask(
     .select('*')
     .single()
 
-  if (error) throw error
+  if (error) throw new Error(error.message || 'updateTask failed')
   return data as Task
 }
 
 export async function deleteTask(taskId: string): Promise<void> {
   const userId = await getUserId()
   const { error } = await supabase.from('tasks').delete().eq('id', taskId).eq('user_id', userId)
-  if (error) throw error
+  if (error) throw new Error(error.message || 'deleteTask failed')
 }

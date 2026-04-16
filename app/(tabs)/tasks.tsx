@@ -22,6 +22,7 @@ import { TaskCard } from '@/components/TaskCard'
 import { EmptyState } from '@/components/EmptyState'
 import { Screen } from '@/components/ui/Screen'
 import { Haptic } from '@/components/ui/Haptic'
+import { EditTaskSheet } from '@/components/sheets/EditTaskSheet'
 import { colors, spacing, radius, fontSize, fontWeight, duration } from '@/constants/theme'
 import { listTasks, updateTaskStatus, deleteTask, type Task, type TaskStatus } from '@/lib/tasks'
 
@@ -66,6 +67,7 @@ export default function TasksScreen() {
   const [activeFilter, setActiveFilter] = useState<FilterOption>('All')
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(false)
+  const [editing, setEditing] = useState<Task | null>(null)
 
   const loadData = async () => {
     setLoading(true)
@@ -213,7 +215,7 @@ export default function TasksScreen() {
             <TaskCard
               task={item}
               onToggle={() => handleToggle(item)}
-              onPress={() => handleToggle(item)}
+              onPress={() => setEditing(item)}
             />
           </SwipeRow>
         )}
@@ -233,6 +235,12 @@ export default function TasksScreen() {
       >
         <FontAwesome name="plus" size={18} color={colors.textPrimary} />
       </Haptic>
+
+      <EditTaskSheet
+        task={editing}
+        onClose={() => setEditing(null)}
+        onMutated={loadData}
+      />
     </Screen>
   )
 }

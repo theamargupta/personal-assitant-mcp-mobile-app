@@ -12,6 +12,8 @@ import {
 } from 'react-native'
 import { createTask, type TaskPriority } from '@/lib/tasks'
 import { tryOrQueue } from '@/lib/queue'
+import { parseOptionalIsoDate } from '@/lib/date-validation'
+import { DateField } from '@/components/ui/DateField'
 import { colors, spacing, radius, fontSize, fontWeight } from '@/constants/theme'
 
 const PRIORITIES: TaskPriority[] = ['low', 'medium', 'high']
@@ -33,6 +35,17 @@ export default function AddTaskScreen() {
       return
     }
 
+    let parsedDueDate: string | undefined
+    try {
+      parsedDueDate = parseOptionalIsoDate(dueDate, 'Due date')
+    } catch (error) {
+      Alert.alert(
+        'Invalid date',
+        error instanceof Error ? error.message : 'Enter a valid date'
+      )
+      return
+    }
+
     setSaving(true)
     try {
       const parsedTags = tags
@@ -43,7 +56,7 @@ export default function AddTaskScreen() {
       const payload = {
         title: title.trim(),
         priority,
-        due_date: dueDate.trim() || undefined,
+        due_date: parsedDueDate,
         description: description.trim() || undefined,
         tags: parsedTags,
       }
@@ -53,7 +66,13 @@ export default function AddTaskScreen() {
       }
       router.back()
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to save task')
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'object' && error && 'message' in error
+          ? String((error as { message: unknown }).message)
+          : 'Failed to save task'
+      Alert.alert('Unable to save task', message)
     } finally {
       setSaving(false)
     }
@@ -86,14 +105,10 @@ export default function AddTaskScreen() {
         })}
       </View>
 
-      <TextInput
-        style={styles.input}
-        value={dueDate}
-        onChangeText={setDueDate}
-        placeholder="Due date (optional) YYYY-MM-DD"
-        placeholderTextColor={colors.placeholder}
-        selectionColor={colors.primary}
-      />
+      <View style={{ marginTop: spacing.lg }}>
+        <Text style={styles.sectionLabel}>Due Date</Text>
+        <DateField value={dueDate} onChange={setDueDate} placeholder="No due date" />
+      </View>
 
       <TextInput
         style={[styles.input, styles.descriptionInput]}

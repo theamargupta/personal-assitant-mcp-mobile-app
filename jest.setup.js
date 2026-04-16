@@ -41,3 +41,27 @@ jest.mock('expo-blur', () => ({
 jest.mock('expo-linear-gradient', () => ({
   LinearGradient: ({ children }) => children,
 }))
+
+// Render Sheet contents inline so UI flow tests can see what's inside without
+// mounting a Modal + Reanimated + gesture handler stack in jsdom.
+jest.mock('@/components/ui/Sheet', () => {
+  const React = require('react')
+  const { View } = require('react-native')
+  return {
+    Sheet: ({ visible, children }) =>
+      visible ? React.createElement(View, { testID: 'mock-sheet' }, children) : null,
+  }
+})
+
+// Pipe Alert.alert confirmations straight to the destructive button so delete
+// flow tests can complete without human input.
+const RN = require('react-native')
+if (RN?.Alert) {
+  jest.spyOn(RN.Alert, 'alert').mockImplementation((_title, _message, buttons) => {
+    if (!Array.isArray(buttons)) return
+    const destructive = buttons.find((b) => b.style === 'destructive')
+    const fallback = buttons.find((b) => b.onPress && b.text !== 'Cancel')
+    const chosen = destructive || fallback
+    chosen?.onPress?.()
+  })
+}

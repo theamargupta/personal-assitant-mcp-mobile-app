@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 import Svg, { Circle } from 'react-native-svg'
 import Animated, {
@@ -10,6 +10,20 @@ import Animated, {
 import { colors, fontSize, fontWeight } from '@/constants/theme'
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
+
+interface NumericLabelMatch {
+  prefix: string
+  number: number
+  suffix: string
+}
+
+function parseNumericLabel(label: string): NumericLabelMatch | null {
+  const match = label.match(/^(\D*)(-?\d+(?:\.\d+)?)(\D*)$/)
+  if (!match) return null
+  const n = Number(match[2])
+  if (!Number.isFinite(n)) return null
+  return { prefix: match[1], number: n, suffix: match[3] }
+}
 
 interface Props {
   progress: number
@@ -71,11 +85,49 @@ export function ProgressRing({
       </Svg>
       {label && (
         <View style={StyleSheet.absoluteFill}>
-          <Text style={styles.label}>{label}</Text>
+          <AnimatedLabel raw={label} />
         </View>
       )}
     </View>
   )
+}
+
+function AnimatedLabel({ raw }: { raw: string }) {
+  const parsed = parseNumericLabel(raw)
+  const [display, setDisplay] = useState<string>(
+    parsed ? `${parsed.prefix}0${parsed.suffix}` : raw
+  )
+  const targetRef = useRef<number>(parsed ? parsed.number : 0)
+  const rafRef = useRef<number>(0)
+
+  useEffect(() => {
+    if (!parsed) {
+      setDisplay(raw)
+      return
+    }
+
+    cancelAnimationFrame(rafRef.current)
+    const fromNumber = targetRef.current
+    const toNumber = parsed.number
+    targetRef.current = toNumber
+
+    const start = performance.now()
+    const dur = 650
+    const isInt = Number.isInteger(toNumber)
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / dur)
+      const eased = 1 - Math.pow(1 - t, 3)
+      const value = fromNumber + (toNumber - fromNumber) * eased
+      const shown = isInt ? Math.round(value).toString() : value.toFixed(1)
+      setDisplay(`${parsed.prefix}${shown}${parsed.suffix}`)
+      if (t < 1) rafRef.current = requestAnimationFrame(step)
+    }
+    rafRef.current = requestAnimationFrame(step)
+
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [raw])
+
+  return <Text style={styles.label}>{display}</Text>
 }
 
 const styles = StyleSheet.create({

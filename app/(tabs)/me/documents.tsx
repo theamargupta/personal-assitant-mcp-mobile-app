@@ -101,7 +101,12 @@ export default function DocumentsScreen() {
     try {
       const res = await documentsApi.get(doc.id)
       if (!res.view_url) {
-        Alert.alert('Unavailable', 'This document has no viewable URL yet.')
+        const detail = res.view_error
+          ? res.view_error
+          : doc.status === 'pending'
+          ? 'Upload did not complete — the file may be missing from storage.'
+          : 'Signed URL could not be generated. Check the "documents" storage bucket exists and has read access.'
+        Alert.alert('Unable to open', detail)
         return
       }
       await WebBrowser.openBrowserAsync(res.view_url)

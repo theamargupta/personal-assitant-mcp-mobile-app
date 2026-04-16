@@ -100,6 +100,20 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  updateMemory: (id: string, data: {
+    title?: string
+    content?: string
+    category?: string
+    tags?: string[]
+  }) =>
+    request<{ memory: MemoryItem }>(`/api/memory/items/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  deleteMemory: (id: string) =>
+    request(`/api/memory/items/${id}`, { method: 'DELETE' }),
 }
 
 // Documents
@@ -107,7 +121,9 @@ export const documentsApi = {
   list: () => request<{ documents: DocumentSummary[] }>('/api/documents'),
 
   get: (id: string) =>
-    request<{ document: DocumentSummary; view_url: string | null }>(`/api/documents/${id}`),
+    request<{ document: DocumentSummary; view_url: string | null; view_error?: string | null }>(
+      `/api/documents/${id}`
+    ),
 
   create: (data: { name: string; mime_type: string; file_size: number; tags?: string[] }) =>
     request<{

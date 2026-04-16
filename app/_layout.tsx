@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { startOnlineSync, syncQueue } from '@/lib/queue'
+import { ToastHost } from '@/components/ui/Toast'
 import Constants from 'expo-constants'
 import { colors } from '@/constants/theme'
 
@@ -156,6 +157,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AuthProvider>
           <RootNavigator />
+          <ToastHost />
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

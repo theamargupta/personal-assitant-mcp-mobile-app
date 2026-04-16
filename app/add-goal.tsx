@@ -13,6 +13,8 @@ import {
 import { createGoal, type GoalType, type MetricType } from '@/lib/goals'
 import { listHabits } from '@/lib/habits'
 import { api } from '@/lib/api'
+import { parseOptionalIsoDate } from '@/lib/date-validation'
+import { DateField } from '@/components/ui/DateField'
 import { colors, spacing, radius, fontSize, fontWeight } from '@/constants/theme'
 
 const GOAL_TYPES: GoalType[] = ['milestone', 'outcome']
@@ -75,6 +77,20 @@ export default function AddGoalScreen() {
       return
     }
 
+    let parsedStart: string | undefined
+    let parsedEnd: string | undefined
+    try {
+      parsedStart = parseOptionalIsoDate(startDate, 'Start date')
+      parsedEnd = parseOptionalIsoDate(endDate, 'End date')
+    } catch (error) {
+      Alert.alert('Invalid date', error instanceof Error ? error.message : 'Enter a valid date')
+      return
+    }
+    if (!parsedStart || !parsedEnd) {
+      Alert.alert('Start and end date are required')
+      return
+    }
+
     setSaving(true)
     try {
       await createGoal({
@@ -84,13 +100,20 @@ export default function AddGoalScreen() {
         metric_type: goalType === 'outcome' ? metricType : undefined,
         metric_ref_id: goalType === 'outcome' ? metricRefId : undefined,
         target_value: goalType === 'outcome' ? Number(targetValue || 0) : undefined,
-        start_date: startDate.trim(),
-        end_date: endDate.trim(),
+        start_date: parsedStart,
+        end_date: parsedEnd,
         milestones: goalType === 'milestone' ? milestoneTitles : undefined,
       })
       router.back()
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to save goal')
+      Alert.alert(
+        'Unable to save goal',
+        error instanceof Error
+          ? error.message
+          : typeof error === 'object' && error && 'message' in error
+          ? String((error as { message: unknown }).message)
+          : 'Failed to save goal'
+      )
     } finally {
       setSaving(false)
     }
@@ -200,22 +223,14 @@ export default function AddGoalScreen() {
         </View>
       )}
 
-      <TextInput
-        style={styles.input}
-        value={startDate}
-        onChangeText={setStartDate}
-        placeholder="Start date YYYY-MM-DD"
-        placeholderTextColor={colors.placeholder}
-        selectionColor={colors.primary}
-      />
-      <TextInput
-        style={styles.input}
-        value={endDate}
-        onChangeText={setEndDate}
-        placeholder="End date YYYY-MM-DD"
-        placeholderTextColor={colors.placeholder}
-        selectionColor={colors.primary}
-      />
+      <View style={{ marginTop: spacing.lg }}>
+        <Text style={styles.sectionLabel}>Start Date</Text>
+        <DateField value={startDate} onChange={setStartDate} placeholder="Pick start date" />
+      </View>
+      <View style={{ marginTop: spacing.md }}>
+        <Text style={styles.sectionLabel}>End Date</Text>
+        <DateField value={endDate} onChange={setEndDate} placeholder="Pick end date" />
+      </View>
       <TextInput
         style={[styles.input, styles.descriptionInput]}
         value={description}

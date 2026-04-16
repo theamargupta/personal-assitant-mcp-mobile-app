@@ -17,6 +17,7 @@ import { Screen } from '@/components/ui/Screen'
 import { GlassCard } from '@/components/ui/GlassCard'
 import { Haptic } from '@/components/ui/Haptic'
 import { Sheet } from '@/components/ui/Sheet'
+import { EditMemorySheet } from '@/components/sheets/EditMemorySheet'
 import { api, type MemoryItem } from '@/lib/api'
 import { colors, spacing, radius, fontSize, fontWeight } from '@/constants/theme'
 
@@ -42,6 +43,7 @@ export default function MemoryScreen() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
+  const [editing, setEditing] = useState<MemoryItem | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query.trim()), 280)
@@ -118,7 +120,9 @@ export default function MemoryScreen() {
           data={items}
           keyExtractor={(m) => m.id}
           contentContainerStyle={styles.list}
-          renderItem={({ item, index }) => <MemoryRow item={item} delay={index * 40} />}
+          renderItem={({ item, index }) => (
+            <MemoryRow item={item} delay={index * 40} onPress={() => setEditing(item)} />
+          )}
           refreshing={loading}
           onRefresh={load}
           ListEmptyComponent={
@@ -152,11 +156,25 @@ export default function MemoryScreen() {
           }}
         />
       </Sheet>
+
+      <EditMemorySheet
+        memory={editing}
+        onClose={() => setEditing(null)}
+        onMutated={load}
+      />
     </>
   )
 }
 
-function MemoryRow({ item, delay }: { item: MemoryItem; delay: number }) {
+function MemoryRow({
+  item,
+  delay,
+  onPress,
+}: {
+  item: MemoryItem
+  delay: number
+  onPress: () => void
+}) {
   const accent = CATEGORY_COLORS[item.category] || colors.primary
   return (
     <MotiView
@@ -165,30 +183,32 @@ function MemoryRow({ item, delay }: { item: MemoryItem; delay: number }) {
       transition={{ type: 'timing', duration: 220, delay }}
       style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.sm }}
     >
-      <GlassCard padding={spacing.md}>
-        <View style={styles.rowHead}>
-          <View style={[styles.catDot, { backgroundColor: accent }]} />
-          <Text style={styles.rowCategory}>{item.category.toUpperCase()}</Text>
-          {item.stale_hint && (
-            <Text style={styles.stale} numberOfLines={1}>· stale</Text>
-          )}
-        </View>
-        <Text style={styles.rowTitle} numberOfLines={1}>
-          {item.title}
-        </Text>
-        <Text style={styles.rowContent} numberOfLines={3}>
-          {item.content}
-        </Text>
-        {item.tags.length > 0 && (
-          <View style={styles.tagRow}>
-            {item.tags.slice(0, 4).map((t) => (
-              <Text key={t} style={styles.tag}>
-                #{t}
-              </Text>
-            ))}
+      <Haptic haptic="selection" onPress={onPress}>
+        <GlassCard padding={spacing.md}>
+          <View style={styles.rowHead}>
+            <View style={[styles.catDot, { backgroundColor: accent }]} />
+            <Text style={styles.rowCategory}>{item.category.toUpperCase()}</Text>
+            {item.stale_hint && (
+              <Text style={styles.stale} numberOfLines={1}>· stale</Text>
+            )}
           </View>
-        )}
-      </GlassCard>
+          <Text style={styles.rowTitle} numberOfLines={1}>
+            {item.title}
+          </Text>
+          <Text style={styles.rowContent} numberOfLines={3}>
+            {item.content}
+          </Text>
+          {item.tags.length > 0 && (
+            <View style={styles.tagRow}>
+              {item.tags.slice(0, 4).map((t) => (
+                <Text key={t} style={styles.tag}>
+                  #{t}
+                </Text>
+              ))}
+            </View>
+          )}
+        </GlassCard>
+      </Haptic>
     </MotiView>
   )
 }

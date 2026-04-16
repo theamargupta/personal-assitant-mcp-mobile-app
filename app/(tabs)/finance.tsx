@@ -15,6 +15,7 @@ import { Screen } from '@/components/ui/Screen'
 import { GlassCard } from '@/components/ui/GlassCard'
 import { Haptic } from '@/components/ui/Haptic'
 import { Row } from '@/components/ui/Row'
+import { EditTransactionSheet, type EditableTransaction } from '@/components/sheets/EditTransactionSheet'
 import { colors, spacing, radius, fontSize, fontWeight, duration } from '@/constants/theme'
 
 const TAB_BAR_CLEARANCE = 170
@@ -70,6 +71,7 @@ export default function MoneyScreen() {
   const [range, setRange] = useState<Range>('Month')
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState<EditableTransaction | null>(null)
 
   const loadData = async () => {
     setLoading(true)
@@ -209,7 +211,7 @@ export default function MoneyScreen() {
             </Text>
           </View>
         )}
-        renderItem={({ item, index, section }) => (
+        renderItem={({ item, index }) => (
           <View style={{ paddingHorizontal: spacing.lg }}>
             <GlassCard padding={0} style={index === 0 ? undefined : styles.cardTight}>
               <Row
@@ -220,6 +222,15 @@ export default function MoneyScreen() {
                   <Text style={styles.amount}>
                     ₹{Math.round(Number(item.amount)).toLocaleString('en-IN')}
                   </Text>
+                }
+                onPress={() =>
+                  setEditing({
+                    id: item.id,
+                    amount: Number(item.amount),
+                    merchant: item.merchant,
+                    note: item.note,
+                    spending_categories: item.spending_categories,
+                  })
                 }
               />
             </GlassCard>
@@ -246,6 +257,12 @@ export default function MoneyScreen() {
       >
         <FontAwesome name="plus" size={18} color={colors.textPrimary} />
       </Haptic>
+
+      <EditTransactionSheet
+        transaction={editing}
+        onClose={() => setEditing(null)}
+        onMutated={loadData}
+      />
     </Screen>
   )
 }

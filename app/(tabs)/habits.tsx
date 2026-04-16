@@ -1,16 +1,32 @@
 import { useCallback, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { useFocusEffect } from '@react-navigation/native'
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native'
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  Alert,
+  RefreshControl,
+} from 'react-native'
+import FontAwesome from '@expo/vector-icons/FontAwesome'
+import { MotiView } from 'moti'
 import { HabitCard } from '@/components/HabitCard'
-import { EmptyState } from '@/components/EmptyState'
+import { Screen } from '@/components/ui/Screen'
+import { Haptic } from '@/components/ui/Haptic'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { EditHabitSheet } from '@/components/sheets/EditHabitSheet'
+import { tryOrQueue } from '@/lib/queue'
 import { listHabits, logHabit, type HabitWithStreak } from '@/lib/habits'
-import { colors, spacing, radius, fontSize, fontWeight } from '@/constants/theme'
+import { colors, spacing, radius, fontSize, fontWeight, duration } from '@/constants/theme'
+
+const TAB_BAR_CLEARANCE = 170
 
 export default function HabitsScreen() {
   const router = useRouter()
   const [habits, setHabits] = useState<HabitWithStreak[]>([])
   const [loading, setLoading] = useState(false)
+  const [editing, setEditing] = useState<HabitWithStreak | null>(null)
 
   const loadData = async () => {
     setLoading(true)
@@ -32,8 +48,7 @@ export default function HabitsScreen() {
 
   const handleLog = async (habitId: string) => {
     try {
-      await logHabit(habitId)
-      Alert.alert('Logged', 'Habit marked complete for today')
+      await tryOrQueue('habit_log', { habit_id: habitId }, () => logHabit(habitId))
       await loadData()
     } catch (error) {
       Alert.alert('Unable to log', error instanceof Error ? error.message : 'Try again')
@@ -45,41 +60,61 @@ export default function HabitsScreen() {
   const todayDone = habits.filter((item) => item.is_logged_today).length
 
   return (
-    <View style={styles.container}>
+    <Screen>
       <FlatList
         data={habits}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={loadData}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
         ListHeaderComponent={
-          <>
-            <Text style={styles.header}>Habits</Text>
+          <MotiView
+            from={{ opacity: 0, translateY: 6 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'timing', duration: duration.base }}
+          >
+            <View style={styles.hero}>
+              <Text style={styles.title}>Habits</Text>
+              <Text style={styles.sub}>
+                <Text style={styles.subAccent}>{todayDone}</Text>
+                <Text> of {activeCount} logged today</Text>
+              </Text>
+            </View>
             <View style={styles.statsRow}>
               <StatCard label="Active" value={String(activeCount)} />
-              <StatCard label="Best Streak" value={String(bestStreak)} />
+              <StatCard label="Best streak" value={String(bestStreak)} />
               <StatCard label="Today" value={`${todayDone}/${activeCount}`} />
             </View>
-          </>
+          </MotiView>
         }
         renderItem={({ item }) => (
-          <HabitCard
-            habit={item}
-            onLog={() => handleLog(item.id)}
-            onPress={() => {}}
-          />
+          <HabitCard habit={item} onLog={() => handleLog(item.id)} onPress={() => setEditing(item)} />
         )}
         ListEmptyComponent={
-          loading ? (
-            <Text style={styles.loading}>Loading habits...</Text>
-          ) : (
-            <EmptyState icon="🔁" title="No habits yet" subtitle="Create your first habit to start building streaks." />
+          loading ? null : (
+            <EmptyState
+              icon="refresh"
+              tone="accent"
+              title="No habits yet"
+              subtitle="Create your first habit to start building streaks."
+              action={{ label: 'New habit', onPress: () => router.push('/add-habit' as any) }}
+            />
           )
         }
       />
 
-      <TouchableOpacity style={styles.fab} activeOpacity={0.8} onPress={() => router.push('/add-habit' as any)}>
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
-    </View>
+      <Haptic haptic="medium" style={styles.fab} onPress={() => router.push('/add-habit' as any)}>
+        <FontAwesome name="plus" size={18} color={colors.textPrimary} />
+      </Haptic>
+
+      <EditHabitSheet habit={editing} onClose={() => setEditing(null)} onMutated={loadData} />
+    </Screen>
   )
 }
 
@@ -93,25 +128,34 @@ function StatCard({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
   list: {
-    paddingBottom: spacing['4xl'],
+    paddingBottom: TAB_BAR_CLEARANCE,
   },
-  header: {
+  hero: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  title: {
+    color: colors.textPrimary,
     fontSize: fontSize.xl,
     fontWeight: fontWeight.bold,
-    color: colors.textPrimary,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.md,
+    letterSpacing: -0.5,
+  },
+  sub: {
+    color: colors.textMuted,
+    fontSize: fontSize.sm,
+    marginTop: 4,
+  },
+  subAccent: {
+    color: colors.primary,
+    fontWeight: fontWeight.semibold,
   },
   statsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
     marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
     marginBottom: spacing.md,
   },
   statCard: {
@@ -120,7 +164,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
-    padding: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
     alignItems: 'center',
   },
   statValue: {
@@ -133,27 +178,20 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     marginTop: spacing.xs,
   },
-  loading: {
-    textAlign: 'center',
-    color: colors.textMuted,
-    marginTop: spacing['4xl'],
-    fontSize: fontSize.base,
-  },
   fab: {
     position: 'absolute',
-    right: 24,
-    bottom: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    right: 20,
+    bottom: 170,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  fabText: {
-    fontSize: fontSize.xl,
-    color: colors.textPrimary,
-    fontWeight: fontWeight.bold,
-    lineHeight: 26,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
   },
 })

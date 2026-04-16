@@ -65,7 +65,7 @@ export async function createHabit(input: {
     .select('*')
     .single()
 
-  if (error) throw error
+  if (error) throw new Error(error.message || 'habits operation failed')
   return data as Habit
 }
 
@@ -80,7 +80,7 @@ export async function listHabits(): Promise<HabitWithStreak[]> {
     .eq('archived', false)
     .order('created_at', { ascending: false })
 
-  if (error) throw error
+  if (error) throw new Error(error.message || 'habits operation failed')
   if (!habits?.length) return []
 
   const thirtyDaysAgo = new Date()
@@ -142,7 +142,7 @@ export async function logHabit(habitId: string, notes?: string): Promise<void> {
 
   if (error) {
     if (error.code === '23505') throw new Error('Already logged today')
-    throw error
+    throw new Error(error.message || 'logHabit failed')
   }
 }
 
@@ -165,10 +165,23 @@ export async function updateHabit(
     .select('*')
     .single()
 
-  if (error) throw error
+  if (error) throw new Error(error.message || 'habits operation failed')
   return data as Habit
 }
 
 export async function archiveHabit(habitId: string): Promise<void> {
   await updateHabit(habitId, { archived: true })
+}
+
+export async function deleteHabit(habitId: string): Promise<void> {
+  const userId = await getUserId()
+  // Remove logs first so we don't orphan history (CASCADE may already handle this,
+  // but being explicit is safer).
+  await supabase.from('habit_logs').delete().eq('habit_id', habitId).eq('user_id', userId)
+  const { error } = await supabase
+    .from('habits')
+    .delete()
+    .eq('id', habitId)
+    .eq('user_id', userId)
+  if (error) throw new Error(error.message || 'habits operation failed')
 }
