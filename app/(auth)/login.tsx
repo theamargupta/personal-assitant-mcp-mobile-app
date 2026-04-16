@@ -32,7 +32,7 @@ export default function LoginScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>
-          PA Finance<Text style={styles.dot}>.</Text>
+          Sathi<Text style={styles.dot}>.</Text>
         </Text>
         <Text style={styles.subtitle}>Track every rupee</Text>
       </View>

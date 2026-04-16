@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "PA Finance",
-    "slug": "pa-finance",
+    "name": "Sathi",
+    "slug": "devfrend-sathi",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "pafinance",
+    "scheme": "sathi",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "platforms": [
@@ -17,7 +17,7 @@
       "backgroundColor": "#09090B"
     },
     "android": {
-      "package": "com.devfrend.pafinance",
+      "package": "com.devfrend.sathi",
       "permissions": [
         "RECEIVE_SMS",
         "READ_SMS",

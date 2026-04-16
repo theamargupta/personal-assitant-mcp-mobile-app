@@ -15,7 +15,7 @@ export interface QueuedItem {
   lastError?: string
 }
 
-const DB_NAME = 'pa-queue.db'
+const DB_NAME = 'sathi-queue.db'
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null
 const listeners = new Set<(count: number) => void>()
 let syncing = false

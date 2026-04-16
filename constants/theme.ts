@@ -1,4 +1,4 @@
-// PA Finance — Dark Premium Design System
+// Sathi — Dark Premium Design System
 
 export const colors = {
   // Backgrounds

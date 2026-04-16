@@ -1,5 +1,5 @@
 #!/bin/bash
-cd "/Volumes/maersk/amargupta/Documents/Latest Projects/Portfolio Project/devfrend-pa-mobile"
+cd "/Volumes/maersk/amargupta/Documents/Latest Projects/Portfolio Project/devfrend-sathi-mobile"
 {
   cat "run-codex/PLAN-16-Apr-2026_04-36PM.md"
   echo ""
