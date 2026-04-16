@@ -1,24 +1,31 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useRouter } from 'expo-router'
+import * as Haptics from 'expo-haptics'
 import {
   Animated,
   View,
   Text,
-  FlatList,
+  SectionList,
+  ScrollView,
   TouchableOpacity,
   StyleSheet,
   Alert,
   PanResponder,
+  RefreshControl,
   type GestureResponderEvent,
   type PanResponderGestureState,
-  type ListRenderItemInfo,
 } from 'react-native'
+import FontAwesome from '@expo/vector-icons/FontAwesome'
+import { MotiView } from 'moti'
 import { TaskCard } from '@/components/TaskCard'
 import { EmptyState } from '@/components/EmptyState'
-import { colors, spacing, radius, fontSize, fontWeight } from '@/constants/theme'
+import { Screen } from '@/components/ui/Screen'
+import { Haptic } from '@/components/ui/Haptic'
+import { colors, spacing, radius, fontSize, fontWeight, duration } from '@/constants/theme'
 import { listTasks, updateTaskStatus, deleteTask, type Task, type TaskStatus } from '@/lib/tasks'
 
+const TAB_BAR_CLEARANCE = 170
 const FILTERS = ['All', 'Pending', 'In Progress', 'Completed'] as const
 type FilterOption = typeof FILTERS[number]
 
@@ -28,6 +35,31 @@ function toStatus(filter: FilterOption): TaskStatus | undefined {
   if (filter === 'In Progress') return 'in_progress'
   return 'completed'
 }
+
+function todayIST(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+}
+
+function endOfWeekIST(): string {
+  const d = new Date()
+  const day = d.getDay()
+  const daysTillSunday = day === 0 ? 0 : 7 - day
+  d.setDate(d.getDate() + daysTillSunday)
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+}
+
+function bucketFor(task: Task): string {
+  if (task.status === 'completed') return 'Completed'
+  if (!task.due_date) return 'No date'
+  const today = todayIST()
+  const weekEnd = endOfWeekIST()
+  if (task.due_date < today) return 'Overdue'
+  if (task.due_date === today) return 'Today'
+  if (task.due_date <= weekEnd) return 'This week'
+  return 'Later'
+}
+
+const BUCKET_ORDER = ['Overdue', 'Today', 'This week', 'Later', 'No date', 'Completed'] as const
 
 export default function TasksScreen() {
   const router = useRouter()
@@ -39,7 +71,7 @@ export default function TasksScreen() {
     setLoading(true)
     try {
       const status = toStatus(activeFilter)
-      const result = await listTasks(status ? { status } : undefined)
+      const result = await listTasks(status ? { status, limit: 200 } : { limit: 200 })
       setTasks(result.tasks)
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to load tasks')
@@ -82,81 +114,189 @@ export default function TasksScreen() {
     ])
   }
 
-  const renderTask = ({ item }: ListRenderItemInfo<Task>) => (
-    <SwipeToDeleteRow onDelete={() => handleDelete(item)}>
-      <TaskCard task={item} onToggle={() => handleToggle(item)} onPress={() => handleToggle(item)} />
-    </SwipeToDeleteRow>
+  const sections = useMemo(() => {
+    const byBucket = new Map<string, Task[]>()
+    for (const t of tasks) {
+      const b = bucketFor(t)
+      const list = byBucket.get(b) || []
+      list.push(t)
+      byBucket.set(b, list)
+    }
+    return BUCKET_ORDER
+      .filter((b) => byBucket.has(b))
+      .map((b) => ({ title: b, data: byBucket.get(b)! }))
+  }, [tasks])
+
+  const pending = useMemo(() => tasks.filter((t) => t.status !== 'completed'), [tasks])
+  const dueToday = useMemo(
+    () => pending.filter((t) => t.due_date === todayIST()).length,
+    [pending]
+  )
+  const overdue = useMemo(
+    () => pending.filter((t) => t.due_date && t.due_date < todayIST()).length,
+    [pending]
   )
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Tasks</Text>
+    <Screen>
+      <MotiView
+        from={{ opacity: 0, translateY: 6 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'timing', duration: duration.base }}
+        style={styles.hero}
+      >
+        <Text style={styles.title}>Tasks</Text>
+        <Text style={styles.sub}>
+          <Text style={styles.subStrong}>{pending.length}</Text> pending
+          {dueToday > 0 && (
+            <>
+              <Text>  ·  </Text>
+              <Text style={styles.subAccent}>{dueToday}</Text>
+              <Text> due today</Text>
+            </>
+          )}
+          {overdue > 0 && (
+            <>
+              <Text>  ·  </Text>
+              <Text style={styles.subDanger}>{overdue}</Text>
+              <Text> overdue</Text>
+            </>
+          )}
+        </Text>
+      </MotiView>
 
-      <FlatList
-        horizontal
-        data={FILTERS}
-        keyExtractor={(item) => item}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
-        renderItem={({ item }) => {
-          const active = item === activeFilter
-          return (
-            <TouchableOpacity
-              style={[styles.chip, active && styles.chipActive]}
-              onPress={() => setActiveFilter(item)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{item}</Text>
-            </TouchableOpacity>
-          )
-        }}
-      />
+      <View style={styles.filterWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {FILTERS.map((item) => {
+            const active = item === activeFilter
+            return (
+              <Haptic
+                haptic="selection"
+                key={item}
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => setActiveFilter(item)}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{item}</Text>
+              </Haptic>
+            )
+          })}
+        </ScrollView>
+      </View>
 
-      <FlatList
-        data={tasks}
+      <SectionList
+        style={{ flex: 1 }}
+        sections={sections}
         keyExtractor={(item) => item.id}
+        stickySectionHeadersEnabled={false}
         contentContainerStyle={styles.list}
-        renderItem={renderTask}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={loadData}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+        renderSectionHeader={({ section }) => (
+          <SectionHeader title={section.title} count={section.data.length} />
+        )}
+        renderItem={({ item }) => (
+          <SwipeRow
+            onDelete={() => handleDelete(item)}
+            onComplete={() => handleToggle(item)}
+            completed={item.status === 'completed'}
+          >
+            <TaskCard
+              task={item}
+              onToggle={() => handleToggle(item)}
+              onPress={() => handleToggle(item)}
+            />
+          </SwipeRow>
+        )}
         ListEmptyComponent={
           loading ? (
-            <Text style={styles.loading}>Loading tasks...</Text>
+            <Text style={styles.loading}>Loading tasks…</Text>
           ) : (
-            <EmptyState icon="✅" title="No tasks yet" subtitle="Create tasks and track completion here." />
+            <EmptyState icon="✅" title="All clear" subtitle="Create a task to get started." />
           )
         }
       />
 
-      <TouchableOpacity style={styles.fab} activeOpacity={0.8} onPress={() => router.push('/add-task' as any)}>
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+      <Haptic
+        haptic="medium"
+        style={styles.fab}
+        onPress={() => router.push('/add-task' as any)}
+      >
+        <FontAwesome name="plus" size={18} color={colors.textPrimary} />
+      </Haptic>
+    </Screen>
+  )
+}
+
+function SectionHeader({ title, count }: { title: string; count: number }) {
+  const accent =
+    title === 'Overdue' ? colors.expense :
+    title === 'Today' ? colors.primary :
+    colors.textMuted
+  return (
+    <View style={styles.sectionHead}>
+      <View style={[styles.sectionDot, { backgroundColor: accent }]} />
+      <Text style={styles.sectionTitle}>{title.toUpperCase()}</Text>
+      <Text style={styles.sectionCount}>{count}</Text>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
+  hero: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
   },
-  header: {
+  title: {
+    color: colors.textPrimary,
     fontSize: fontSize.xl,
     fontWeight: fontWeight.bold,
+    letterSpacing: -0.5,
+  },
+  sub: {
+    color: colors.textMuted,
+    fontSize: fontSize.sm,
+    marginTop: 4,
+  },
+  subStrong: {
     color: colors.textPrimary,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
+    fontWeight: fontWeight.semibold,
+  },
+  subAccent: {
+    color: colors.primary,
+    fontWeight: fontWeight.semibold,
+  },
+  subDanger: {
+    color: colors.expense,
+    fontWeight: fontWeight.semibold,
+  },
+  filterWrap: {
+    height: 48,
   },
   filterRow: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    alignItems: 'center',
     gap: spacing.sm,
   },
   chip: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    height: 32,
     borderRadius: radius.full,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chipActive: {
     backgroundColor: colors.primaryGlow,
@@ -172,7 +312,32 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.semibold,
   },
   list: {
-    paddingBottom: spacing['4xl'],
+    paddingBottom: TAB_BAR_CLEARANCE,
+  },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xs,
+  },
+  sectionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  sectionTitle: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    fontWeight: fontWeight.semibold,
+    letterSpacing: 1.4,
+  },
+  sectionCount: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    fontWeight: fontWeight.medium,
+    marginLeft: 'auto',
   },
   loading: {
     textAlign: 'center',
@@ -196,6 +361,24 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.bold,
     fontSize: fontSize.sm,
   },
+  completeAction: {
+    position: 'absolute',
+    left: spacing.lg,
+    top: spacing.xs,
+    bottom: spacing.xs,
+    width: 96,
+    borderRadius: radius.md,
+    backgroundColor: colors.income,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  completeText: {
+    color: colors.textPrimary,
+    fontWeight: fontWeight.bold,
+    fontSize: fontSize.sm,
+  },
   swipeRow: {
     position: 'relative',
   },
@@ -205,53 +388,86 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    right: 24,
-    bottom: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    right: 20,
+    bottom: 170,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  fabText: {
-    fontSize: fontSize.xl,
-    color: colors.textPrimary,
-    fontWeight: fontWeight.bold,
-    lineHeight: 26,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
   },
 })
 
-function SwipeToDeleteRow({ children, onDelete }: { children: ReactNode; onDelete: () => void }) {
+const SWIPE_DELETE = -84
+const SWIPE_COMPLETE = 96
+const FIRE_THRESHOLD = 80
+
+function SwipeRow({
+  children,
+  onDelete,
+  onComplete,
+  completed,
+}: {
+  children: ReactNode
+  onDelete: () => void
+  onComplete: () => void
+  completed: boolean
+}) {
   const translateX = useRef(new Animated.Value(0)).current
+  const fired = useRef(false)
 
   const reset = () => {
-    Animated.spring(translateX, {
-      toValue: 0,
-      useNativeDriver: true,
-      bounciness: 0,
-    }).start()
+    fired.current = false
+    Animated.spring(translateX, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start()
   }
 
-  const reveal = () => {
-    Animated.spring(translateX, {
-      toValue: -84,
-      useNativeDriver: true,
-      bounciness: 0,
-    }).start()
+  const revealDelete = () => {
+    Animated.spring(translateX, { toValue: SWIPE_DELETE, useNativeDriver: true, bounciness: 0 }).start()
   }
 
   const onMove = (_event: GestureResponderEvent, gesture: PanResponderGestureState) => {
-    if (gesture.dx < 0) {
-      translateX.setValue(Math.max(-84, gesture.dx))
+    const dx = gesture.dx
+    if (dx > SWIPE_COMPLETE) {
+      // Trigger haptic once when crossing the threshold rightward.
+      if (!fired.current) {
+        fired.current = true
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+      }
+      translateX.setValue(Math.min(SWIPE_COMPLETE + 20, dx))
+    } else if (dx < SWIPE_DELETE) {
+      if (!fired.current) {
+        fired.current = true
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+      }
+      translateX.setValue(Math.max(SWIPE_DELETE - 20, dx))
     } else {
-      translateX.setValue(0)
+      fired.current = false
+      translateX.setValue(dx)
     }
   }
 
   const onRelease = (_event: GestureResponderEvent, gesture: PanResponderGestureState) => {
-    if (gesture.dx < -50) {
-      reveal()
+    const dx = gesture.dx
+    if (dx > FIRE_THRESHOLD) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined)
+      // Slide right off screen briefly, then reset and fire.
+      Animated.timing(translateX, {
+        toValue: 360,
+        duration: 180,
+        useNativeDriver: true,
+      }).start(() => {
+        onComplete()
+        translateX.setValue(0)
+        fired.current = false
+      })
+    } else if (dx < -FIRE_THRESHOLD) {
+      revealDelete()
     } else {
       reset()
     }
@@ -260,7 +476,8 @@ function SwipeToDeleteRow({ children, onDelete }: { children: ReactNode; onDelet
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dx) > Math.abs(gesture.dy) && Math.abs(gesture.dx) > 8,
+        onMoveShouldSetPanResponder: (_event, gesture) =>
+          Math.abs(gesture.dx) > Math.abs(gesture.dy) && Math.abs(gesture.dx) > 8,
         onPanResponderMove: onMove,
         onPanResponderRelease: onRelease,
         onPanResponderTerminate: reset,
@@ -269,8 +486,22 @@ function SwipeToDeleteRow({ children, onDelete }: { children: ReactNode; onDelet
   )
   const animatedStyle = useMemo(() => ({ transform: [{ translateX }] }), [translateX])
 
+  const completeIconOpacity = translateX.interpolate({
+    inputRange: [0, FIRE_THRESHOLD, SWIPE_COMPLETE],
+    outputRange: [0, 0.7, 1],
+    extrapolate: 'clamp',
+  })
+
   return (
     <View style={styles.swipeRow}>
+      <Animated.View style={[styles.completeAction, { opacity: completeIconOpacity }]}>
+        <FontAwesome
+          name={completed ? 'undo' : 'check'}
+          size={18}
+          color={colors.textPrimary}
+        />
+        <Text style={styles.completeText}>{completed ? 'Undo' : 'Done'}</Text>
+      </Animated.View>
       <TouchableOpacity style={styles.deleteAction} onPress={onDelete} activeOpacity={0.7}>
         <Text style={styles.deleteText}>Delete</Text>
       </TouchableOpacity>

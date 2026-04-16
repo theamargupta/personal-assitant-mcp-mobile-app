@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native'
 import { createTask, type TaskPriority } from '@/lib/tasks'
+import { tryOrQueue } from '@/lib/queue'
 import { colors, spacing, radius, fontSize, fontWeight } from '@/constants/theme'
 
 const PRIORITIES: TaskPriority[] = ['low', 'medium', 'high']
@@ -39,13 +40,17 @@ export default function AddTaskScreen() {
         .map((tag) => tag.trim())
         .filter(Boolean)
 
-      await createTask({
+      const payload = {
         title: title.trim(),
         priority,
         due_date: dueDate.trim() || undefined,
         description: description.trim() || undefined,
         tags: parsedTags,
-      })
+      }
+      const result = await tryOrQueue('task_create', payload, () => createTask(payload))
+      if (result.queued) {
+        Alert.alert('Saved offline', 'Your task was queued and will sync when you reconnect.')
+      }
       router.back()
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to save task')

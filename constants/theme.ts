@@ -83,6 +83,47 @@ export const fontWeight = {
   extrabold: '800' as const,
 }
 
+export const duration = {
+  fast: 150,
+  base: 220,
+  slow: 320,
+} as const
+
+export const spring = {
+  snappy: { damping: 18, stiffness: 220, mass: 0.8 },
+  gentle: { damping: 22, stiffness: 140, mass: 1 },
+  bouncy: { damping: 12, stiffness: 180, mass: 0.9 },
+} as const
+
+export const elevation = {
+  sm: {
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  md: {
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  glow: {
+    shadowColor: colors.primary,
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 10,
+  },
+} as const
+
+export const blur = {
+  subtle: 20,
+  heavy: 40,
+} as const
+
 // Category icon mapping with assigned colors
 export const CATEGORIES = [
   { key: 'Food', icon: '🍕', color: '#F97316' },

@@ -76,4 +76,81 @@ export const api = {
 
   deleteCategory: (id: string) =>
     request(`/api/finance/categories/${id}`, { method: 'DELETE' }),
+
+  // Memory
+  listMemories: (params?: Record<string, string>) => {
+    const query = params ? '?' + new URLSearchParams(params).toString() : ''
+    return request<{ memories: MemoryItem[] }>(`/api/memory/items${query}`)
+  },
+
+  searchMemories: (q: string, params?: Record<string, string>) => {
+    const query = new URLSearchParams({ q, ...(params || {}) }).toString()
+    return request<{ results: MemoryItem[] }>(`/api/memory/search?${query}`)
+  },
+
+  saveMemory: (data: {
+    title: string
+    content: string
+    category?: string
+    tags?: string[]
+    space?: string
+    force?: boolean
+  }) =>
+    request('/api/memory/items', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+}
+
+// Documents
+export const documentsApi = {
+  list: () => request<{ documents: DocumentSummary[] }>('/api/documents'),
+
+  get: (id: string) =>
+    request<{ document: DocumentSummary; view_url: string | null }>(`/api/documents/${id}`),
+
+  create: (data: { name: string; mime_type: string; file_size: number; tags?: string[] }) =>
+    request<{
+      document: { id: string; name: string; created_at: string; storage_path: string }
+      upload_url: string
+      storage_path: string
+      mime_type: string
+    }>('/api/documents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  markReady: (id: string, fileSize: number) =>
+    request<{ document: DocumentSummary }>(`/api/documents/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'ready', file_size: fileSize }),
+    }),
+
+  delete: (id: string) => request(`/api/documents/${id}`, { method: 'DELETE' }),
+}
+
+export interface DocumentSummary {
+  id: string
+  name: string
+  description: string | null
+  doc_type: 'pdf' | 'image' | 'other'
+  mime_type: string
+  file_size: number
+  tags: string[]
+  status: 'pending' | 'ready'
+  created_at: string
+}
+
+export interface MemoryItem {
+  id: string
+  title: string
+  content: string
+  category: string
+  tags: string[]
+  project: string | null
+  importance: number
+  created_at: string
+  updated_at: string
+  stale_hint?: string | null
+  final_score?: number
 }

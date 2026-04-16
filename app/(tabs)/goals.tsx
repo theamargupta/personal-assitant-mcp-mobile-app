@@ -1,13 +1,26 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useRouter } from 'expo-router'
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Pressable } from 'react-native'
-import { GoalCard } from '@/components/GoalCard'
-import { EmptyState } from '@/components/EmptyState'
-import { colors, spacing, radius, fontSize, fontWeight } from '@/constants/theme'
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Alert,
+  Pressable,
+  RefreshControl,
+} from 'react-native'
+import { MotiView } from 'moti'
+import { Screen } from '@/components/ui/Screen'
+import { GlassCard } from '@/components/ui/GlassCard'
+import { Haptic } from '@/components/ui/Haptic'
+import { ProgressRing } from '@/components/ui/ProgressRing'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { colors, spacing, radius, fontSize, fontWeight, duration } from '@/constants/theme'
 import { listGoals, toggleMilestone, type GoalStatus, type GoalWithProgress } from '@/lib/goals'
 
+const TAB_BAR_CLEARANCE = 170
 const FILTERS = ['Active', 'Completed', 'All'] as const
 type FilterOption = typeof FILTERS[number]
 
@@ -22,7 +35,7 @@ export default function GoalsScreen() {
   const [activeFilter, setActiveFilter] = useState<FilterOption>('Active')
   const [goals, setGoals] = useState<GoalWithProgress[]>([])
   const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   const loadData = async () => {
     setLoading(true)
@@ -52,128 +65,245 @@ export default function GoalsScreen() {
     }
   }
 
+  const { active, completed } = useMemo(() => {
+    const a: GoalWithProgress[] = []
+    const c: GoalWithProgress[] = []
+    for (const g of goals) (g.status === 'completed' ? c : a).push(g)
+    return { active: a, completed: c }
+  }, [goals])
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Goals</Text>
+    <Screen>
+      <MotiView
+        from={{ opacity: 0, translateY: 6 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'timing', duration: duration.base }}
+        style={styles.hero}
+      >
+        <Text style={styles.title}>Goals</Text>
+        <Text style={styles.sub}>
+          <Text style={styles.subStrong}>{active.length}</Text> active
+          {completed.length > 0 && (
+            <>
+              <Text>  ·  </Text>
+              <Text style={styles.subMuted}>{completed.length}</Text>
+              <Text> done</Text>
+            </>
+          )}
+        </Text>
+      </MotiView>
 
-      <Pressable style={styles.reviewCard} onPress={() => router.push('/review' as any)}>
-        <Text style={styles.reviewTitle}>📊 View Weekly Review</Text>
-        <FontAwesome name="angle-right" size={18} color={colors.textSecondary} />
-      </Pressable>
+      <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.sm }}>
+        <Haptic
+          haptic="selection"
+          onPress={() => router.push('/review' as any)}
+          style={styles.reviewCard}
+        >
+          <View style={styles.reviewDot} />
+          <Text style={styles.reviewTitle}>Weekly review</Text>
+          <FontAwesome name="angle-right" size={16} color={colors.textSecondary} />
+        </Haptic>
+      </View>
 
-      <FlatList
-        horizontal
-        data={FILTERS}
-        keyExtractor={(item) => item}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
-        renderItem={({ item }) => {
-          const active = item === activeFilter
-          return (
-            <TouchableOpacity
-              style={[styles.chip, active && styles.chipActive]}
-              onPress={() => setActiveFilter(item)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{item}</Text>
-            </TouchableOpacity>
-          )
-        }}
-      />
+      <View style={styles.filterWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {FILTERS.map((item) => {
+            const isActive = item === activeFilter
+            return (
+              <Haptic
+                haptic="selection"
+                key={item}
+                style={[styles.chip, isActive && styles.chipActive]}
+                onPress={() => setActiveFilter(item)}
+              >
+                <Text style={[styles.chipText, isActive && styles.chipTextActive]}>{item}</Text>
+              </Haptic>
+            )
+          })}
+        </ScrollView>
+      </View>
 
-      <FlatList
-        data={goals}
-        keyExtractor={(item) => item.id}
+      <ScrollView
         contentContainerStyle={styles.list}
-        renderItem={({ item }) => {
-          const expanded = expandedGoalId === item.id
-          return (
-            <View>
-              <GoalCard
-                goal={item}
-                onPress={() => setExpandedGoalId(expanded ? null : item.id)}
-              />
-              {expanded && item.goal_type === 'milestone' && item.milestones?.length ? (
-                <View style={styles.milestoneBox}>
-                  {item.milestones.map((milestone) => (
-                    <Pressable
-                      key={milestone.id}
-                      style={styles.milestoneRow}
-                      onPress={() => handleToggleMilestone(milestone.id, milestone.completed)}
-                    >
-                      <FontAwesome
-                        name={milestone.completed ? 'check-circle' : 'circle-thin'}
-                        size={18}
-                        color={milestone.completed ? colors.income : colors.textMuted}
-                      />
-                      <Text style={[styles.milestoneTitle, milestone.completed && styles.milestoneDone]}>
-                        {milestone.title}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          )
-        }}
-        ListEmptyComponent={
-          loading ? (
-            <Text style={styles.loading}>Loading goals...</Text>
-          ) : (
-            <EmptyState icon="🎯" title="No goals yet" subtitle="Create a goal and track progress over time." />
-          )
+        refreshControl={
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={loadData}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
         }
-      />
+        showsVerticalScrollIndicator={false}
+      >
+        {goals.length === 0 && !loading ? (
+          <EmptyState
+            icon="bullseye"
+            tone="accent"
+            title="No goals yet"
+            subtitle="Set an outcome goal or a milestone list to track progress over time."
+            action={{ label: 'Create goal', onPress: () => router.push('/add-goal' as any) }}
+          />
+        ) : (
+          goals.map((item, idx) => {
+            const expanded = expandedGoalId === item.id
+            return (
+              <View key={item.id} style={styles.goalWrap}>
+                <Haptic haptic="selection" onPress={() => setExpandedGoalId(expanded ? null : item.id)}>
+                  <GlassCard padding={spacing.lg} glow={item.status === 'active' && item.progress_pct >= 75}>
+                    <View style={styles.goalRow}>
+                      <ProgressRing
+                        progress={Math.min(1, (item.progress_pct || 0) / 100)}
+                        size={56}
+                        stroke={5}
+                        color={item.status === 'completed' ? colors.income : colors.primary}
+                        label={`${Math.round(item.progress_pct || 0)}%`}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.goalTitleRow}>
+                          <Text style={styles.goalTitle} numberOfLines={1}>
+                            {item.title}
+                          </Text>
+                          {item.status === 'completed' && (
+                            <FontAwesome name="check-circle" size={14} color={colors.income} />
+                          )}
+                        </View>
+                        <Text style={styles.goalMeta} numberOfLines={1}>
+                          {(item.metric_type || item.goal_type || 'goal').replace(/_/g, ' ')}
+                          {item.end_date && (
+                            <>
+                              <Text>  ·  by </Text>
+                              <Text style={{ color: colors.textSecondary }}>
+                                {new Date(item.end_date).toLocaleDateString('en-IN', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                })}
+                              </Text>
+                            </>
+                          )}
+                        </Text>
+                      </View>
+                      <FontAwesome
+                        name={expanded ? 'chevron-up' : 'chevron-down'}
+                        size={12}
+                        color={colors.textMuted}
+                      />
+                    </View>
 
-      <TouchableOpacity style={styles.fab} activeOpacity={0.8} onPress={() => router.push('/add-goal' as any)}>
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
-    </View>
+                    {expanded && item.goal_type === 'milestone' && item.milestones?.length ? (
+                      <View style={styles.milestoneBox}>
+                        {item.milestones.map((m) => (
+                          <Pressable
+                            key={m.id}
+                            style={styles.milestoneRow}
+                            onPress={() => handleToggleMilestone(m.id, m.completed)}
+                          >
+                            <FontAwesome
+                              name={m.completed ? 'check-circle' : 'circle-thin'}
+                              size={16}
+                              color={m.completed ? colors.income : colors.textMuted}
+                            />
+                            <Text
+                              style={[
+                                styles.milestoneTitle,
+                                m.completed && styles.milestoneDone,
+                              ]}
+                            >
+                              {m.title}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    ) : null}
+                  </GlassCard>
+                </Haptic>
+              </View>
+            )
+          })
+        )}
+        <View style={{ height: TAB_BAR_CLEARANCE }} />
+      </ScrollView>
+
+      <Haptic
+        haptic="medium"
+        style={styles.fab}
+        onPress={() => router.push('/add-goal' as any)}
+      >
+        <FontAwesome name="plus" size={18} color={colors.textPrimary} />
+      </Haptic>
+    </Screen>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
+  hero: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
   },
-  header: {
+  title: {
+    color: colors.textPrimary,
     fontSize: fontSize.xl,
     fontWeight: fontWeight.bold,
+    letterSpacing: -0.5,
+  },
+  sub: {
+    color: colors.textMuted,
+    fontSize: fontSize.sm,
+    marginTop: 4,
+  },
+  subStrong: {
     color: colors.textPrimary,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
+    fontWeight: fontWeight.semibold,
+  },
+  subMuted: {
+    color: colors.textSecondary,
+    fontWeight: fontWeight.semibold,
   },
   reviewCard: {
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(139,92,246,0.35)',
+    backgroundColor: 'rgba(139,92,246,0.08)',
+  },
+  reviewDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
   },
   reviewTitle: {
+    flex: 1,
     color: colors.textPrimary,
-    fontSize: fontSize.base,
+    fontSize: fontSize.sm,
     fontWeight: fontWeight.semibold,
+  },
+  filterWrap: {
+    height: 48,
+    marginTop: spacing.sm,
   },
   filterRow: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    alignItems: 'center',
     gap: spacing.sm,
   },
   chip: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    height: 32,
     borderRadius: radius.full,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chipActive: {
     backgroundColor: colors.primaryGlow,
@@ -189,18 +319,40 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.semibold,
   },
   list: {
-    paddingBottom: spacing['4xl'],
+    paddingTop: spacing.sm,
+  },
+  goalWrap: {
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  goalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  goalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  goalTitle: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.semibold,
+  },
+  goalMeta: {
+    color: colors.textMuted,
+    fontSize: fontSize.xs,
+    marginTop: 3,
+    textTransform: 'capitalize',
   },
   milestoneBox: {
-    marginTop: -2,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
-    borderColor: colors.surfaceBorder,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    backgroundColor: colors.surfaceElevated,
-    padding: spacing.md,
+    marginTop: spacing.md,
     gap: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.surfaceBorder,
   },
   milestoneRow: {
     flexDirection: 'row',
@@ -216,27 +368,20 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textDecorationLine: 'line-through',
   },
-  loading: {
-    textAlign: 'center',
-    color: colors.textMuted,
-    marginTop: spacing['4xl'],
-    fontSize: fontSize.base,
-  },
   fab: {
     position: 'absolute',
-    right: 24,
-    bottom: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    right: 20,
+    bottom: 170,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  fabText: {
-    fontSize: fontSize.xl,
-    color: colors.textPrimary,
-    fontWeight: fontWeight.bold,
-    lineHeight: 26,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
   },
 })

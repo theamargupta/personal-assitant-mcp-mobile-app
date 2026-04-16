@@ -2,7 +2,10 @@ import { useEffect } from 'react'
 import { View, StyleSheet } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, useAuth } from '@/lib/auth'
+import { startOnlineSync, syncQueue } from '@/lib/queue'
 import Constants from 'expo-constants'
 import { colors } from '@/constants/theme'
 
@@ -35,6 +38,14 @@ function RootNavigator() {
       router.replace('/')
     }
   }, [session, loading, segments, router])
+
+  // Drain the offline queue when we have a session + sync when we come back online.
+  useEffect(() => {
+    if (!session) return
+    void syncQueue().catch(() => undefined)
+    const unsub = startOnlineSync()
+    return () => unsub()
+  }, [session])
 
   // Set up notifications + SMS only in dev builds (skip Expo Go)
   useEffect(() => {
@@ -141,8 +152,12 @@ const styles = StyleSheet.create({
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootNavigator />
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <RootNavigator />
+        </AuthProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   )
 }
