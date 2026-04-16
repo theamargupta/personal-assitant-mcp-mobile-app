@@ -79,7 +79,8 @@ export function Sheet({ visible, onClose, children, heightRatio = 0.92 }: Props)
         </Animated.View>
 
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
           style={styles.kb}
           pointerEvents="box-none"
         >

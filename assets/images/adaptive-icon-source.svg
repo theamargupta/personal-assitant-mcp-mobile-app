@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="violet" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A78BFA"/>
+      <stop offset="50%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#6D28D9"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FAFAFA" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#E4E4E7" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+  <!-- Android adaptive foreground: transparent outside; mark sits in center safe zone -->
+  <circle cx="512" cy="512" r="318" fill="url(#violet)"/>
+  <circle cx="512" cy="420" r="200" fill="#FAFAFA" fill-opacity="0.08"/>
+  <path fill="url(#shine)" d="M628 340c-48-32-112-28-156 8-36 28-52 72-44 116 8 40 40 68 88 84l52 18c28 10 42 24 46 44 6 28-12 56-44 64-40 10-84-4-108-36l-68 52c44 56 120 80 192 60 72-22 112-88 100-160-10-56-48-88-104-106l-48-16c-24-8-36-20-40-40-4-24 12-48 40-56 32-10 68 2 92 28l64-56z"/>
+</svg>

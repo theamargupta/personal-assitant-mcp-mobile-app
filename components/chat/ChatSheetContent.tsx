@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -7,13 +7,22 @@ import {
   ScrollView,
   Platform,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native'
 import FontAwesome from '@expo/vector-icons/FontAwesome'
 import { MotiView } from 'moti'
+import * as SecureStore from 'expo-secure-store'
 import { Haptic } from '@/components/ui/Haptic'
-import { streamChat, type ChatMessage, type ToolCall } from '@/lib/chat'
+import {
+  streamChat,
+  type ChatMessage,
+  type ChatProvider,
+  type ToolCall,
+} from '@/lib/chat'
 import { useChatStore } from '@/lib/stores/chat-store'
 import { colors, radius, spacing, fontSize, fontWeight } from '@/constants/theme'
+
+const PROVIDER_STORAGE_KEY = 'sathi_chat_provider'
 
 const SUGGESTIONS = [
   'Add ₹200 for coffee',
@@ -33,8 +42,34 @@ export function ChatSheetContent({ onClose }: Props) {
   const store = useChatStore
 
   const [input, setInput] = useState('')
+  const [provider, setProvider] = useState<ChatProvider>('claude')
+  const [keyboardPad, setKeyboardPad] = useState(0)
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<ScrollView | null>(null)
+
+  useEffect(() => {
+    SecureStore.getItemAsync(PROVIDER_STORAGE_KEY).then((v) => {
+      if (v === 'claude' || v === 'openai') setProvider(v)
+    })
+  }, [])
+
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
+    const subShow = Keyboard.addListener(showEvt, (e) => {
+      setKeyboardPad(e.endCoordinates.height)
+    })
+    const subHide = Keyboard.addListener(hideEvt, () => setKeyboardPad(0))
+    return () => {
+      subShow.remove()
+      subHide.remove()
+    }
+  }, [])
+
+  const setProviderPersist = async (p: ChatProvider) => {
+    setProvider(p)
+    await SecureStore.setItemAsync(PROVIDER_STORAGE_KEY, p)
+  }
 
   const canSend = !streaming && input.trim().length > 0
 
@@ -71,7 +106,11 @@ export function ChatSheetContent({ onClose }: Props) {
     store.getState().setStreaming(true)
 
     try {
-      for await (const event of streamChat({ messages: history, signal: controller.signal })) {
+      for await (const event of streamChat({
+        messages: history,
+        signal: controller.signal,
+        provider,
+      })) {
         if (event.type === 'text_delta') {
           store.getState().appendAssistantText(assistantId, event.text)
         } else if (event.type === 'tool_use_start') {
@@ -102,7 +141,12 @@ export function ChatSheetContent({ onClose }: Props) {
   }
 
   return (
-    <View style={styles.root}>
+    <View
+      style={[
+        styles.root,
+        Platform.OS === 'android' && keyboardPad > 0 ? { paddingBottom: keyboardPad } : null,
+      ]}
+    >
       <View style={styles.header}>
         <View style={styles.titleGroup}>
           <View style={[styles.dot, streaming && styles.dotActive]} />
@@ -121,11 +165,49 @@ export function ChatSheetContent({ onClose }: Props) {
         </View>
       </View>
 
+      <View style={styles.providerRow}>
+        <Text style={styles.providerLabel}>Model</Text>
+        <View style={styles.providerChips}>
+          <Haptic
+            haptic="selection"
+            onPress={() => !streaming && void setProviderPersist('claude')}
+            style={[
+              styles.providerChip,
+              provider === 'claude' && styles.providerChipActive,
+              streaming && styles.providerChipDisabled,
+            ]}
+          >
+            <Text
+              style={[styles.providerChipText, provider === 'claude' && styles.providerChipTextActive]}
+            >
+              Claude
+            </Text>
+          </Haptic>
+          <Haptic
+            haptic="selection"
+            onPress={() => !streaming && void setProviderPersist('openai')}
+            style={[
+              styles.providerChip,
+              provider === 'openai' && styles.providerChipActive,
+              streaming && styles.providerChipDisabled,
+            ]}
+          >
+            <Text
+              style={[styles.providerChipText, provider === 'openai' && styles.providerChipTextActive]}
+            >
+              ChatGPT
+            </Text>
+          </Haptic>
+        </View>
+      </View>
+
       <ScrollView
         ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
       >
         {messages.length === 0 ? (
@@ -291,6 +373,47 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     gap: spacing.sm,
+  },
+  providerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: spacing.sm,
+    gap: spacing.md,
+  },
+  providerLabel: {
+    color: colors.textMuted,
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  providerChips: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  providerChip: {
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    backgroundColor: colors.surface,
+  },
+  providerChipActive: {
+    borderColor: 'rgba(139,92,246,0.55)',
+    backgroundColor: 'rgba(139,92,246,0.15)',
+  },
+  providerChipDisabled: {
+    opacity: 0.5,
+  },
+  providerChipText: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+  },
+  providerChipTextActive: {
+    color: colors.textPrimary,
   },
   actionBtn: {
     width: 32,

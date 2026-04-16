@@ -18,6 +18,7 @@
     },
     "android": {
       "package": "com.devfrend.sathi",
+      "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "RECEIVE_SMS",
         "READ_SMS",
@@ -25,7 +26,7 @@
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#3b82f6"
+        "backgroundColor": "#09090B"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false

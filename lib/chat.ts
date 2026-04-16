@@ -27,9 +27,13 @@ export type ChatEvent =
   | { type: 'done'; stop_reason: string | null }
   | { type: 'error'; message: string }
 
+export type ChatProvider = 'claude' | 'openai'
+
 export interface SendOptions {
   messages: Array<{ role: ChatRole; content: string }>
   signal?: AbortSignal
+  /** Server uses ANTHROPIC vs OPENAI keys; default `claude`. */
+  provider?: ChatProvider
 }
 
 /**
@@ -37,7 +41,11 @@ export interface SendOptions {
  * Uses plain fetch + manual stream reader so it works in React Native
  * (where EventSource is not available).
  */
-export async function* streamChat({ messages, signal }: SendOptions): AsyncGenerator<ChatEvent> {
+export async function* streamChat({
+  messages,
+  signal,
+  provider = 'claude',
+}: SendOptions): AsyncGenerator<ChatEvent> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session?.access_token) throw new Error('Not authenticated')
 
@@ -48,7 +56,7 @@ export async function* streamChat({ messages, signal }: SendOptions): AsyncGener
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
     },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, provider }),
     signal,
   })
 
