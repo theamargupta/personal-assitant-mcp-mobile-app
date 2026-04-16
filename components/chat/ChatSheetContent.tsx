@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
 import FontAwesome from '@expo/vector-icons/FontAwesome'
 import { MotiView } from 'moti'
 import * as SecureStore from 'expo-secure-store'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Haptic } from '@/components/ui/Haptic'
 import {
   streamChat,
@@ -40,12 +41,21 @@ export function ChatSheetContent({ onClose }: Props) {
   const streaming = useChatStore((s) => s.streaming)
   const error = useChatStore((s) => s.error)
   const store = useChatStore
+  const insets = useSafeAreaInsets()
 
   const [input, setInput] = useState('')
   const [provider, setProvider] = useState<ChatProvider>('claude')
   const [keyboardPad, setKeyboardPad] = useState(0)
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<ScrollView | null>(null)
+
+  useLayoutEffect(() => {
+    if (messages.length === 0) return
+    const id = requestAnimationFrame(() => {
+      scrollRef.current?.scrollToEnd({ animated: true })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [messages.length, streaming])
 
   useEffect(() => {
     SecureStore.getItemAsync(PROVIDER_STORAGE_KEY).then((v) => {
@@ -140,13 +150,10 @@ export function ChatSheetContent({ onClose }: Props) {
     store.getState().reset()
   }
 
+  const bottomPad = keyboardPad > 0 ? keyboardPad : insets.bottom
+
   return (
-    <View
-      style={[
-        styles.root,
-        Platform.OS === 'android' && keyboardPad > 0 ? { paddingBottom: keyboardPad } : null,
-      ]}
-    >
+    <View style={[styles.root, { paddingBottom: bottomPad }]}>
       <View style={styles.header}>
         <View style={styles.titleGroup}>
           <View style={[styles.dot, streaming && styles.dotActive]} />
@@ -204,11 +211,17 @@ export function ChatSheetContent({ onClose }: Props) {
       <ScrollView
         ref={scrollRef}
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          messages.length > 0 && styles.scrollContentFilled,
+        ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+        onContentSizeChange={() => {
+          if (messages.length === 0) return
+          scrollRef.current?.scrollToEnd({ animated: false })
+        }}
       >
         {messages.length === 0 ? (
           <View style={styles.empty}>
@@ -429,6 +442,10 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingVertical: spacing.md,
     gap: spacing.md,
+  },
+  scrollContentFilled: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
   },
   empty: {
     paddingTop: spacing['2xl'],

@@ -1,15 +1,7 @@
 import { ReactNode, useEffect } from 'react'
-import {
-  View,
-  StyleSheet,
-  Modal,
-  Pressable,
-  KeyboardAvoidingView,
-  Platform,
-  Dimensions,
-} from 'react-native'
+import { View, StyleSheet, Modal, Pressable, useWindowDimensions } from 'react-native'
 import { BlurView } from 'expo-blur'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -20,7 +12,8 @@ import Animated, {
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler'
 import { colors, radius, spring } from '@/constants/theme'
 
-const { height: SCREEN_H } = Dimensions.get('window')
+/** Minimum space above the sheet so it never starts under the status bar / Dynamic Island. */
+const TOP_MARGIN_BELOW_STATUS = 8
 
 interface Props {
   visible: boolean
@@ -30,7 +23,12 @@ interface Props {
 }
 
 export function Sheet({ visible, onClose, children, heightRatio = 0.92 }: Props) {
-  const sheetH = SCREEN_H * heightRatio
+  const { height: winH } = useWindowDimensions()
+  const insets = useSafeAreaInsets()
+  // 8% top gap is too small on compact heights (e.g. SE) and overlaps the status bar.
+  const ratioTopGap = winH * (1 - heightRatio)
+  const topGap = Math.max(ratioTopGap, insets.top + TOP_MARGIN_BELOW_STATUS)
+  const sheetH = winH - topGap
   const translateY = useSharedValue(sheetH)
   const backdrop = useSharedValue(0)
 
@@ -78,12 +76,8 @@ export function Sheet({ visible, onClose, children, heightRatio = 0.92 }: Props)
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         </Animated.View>
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
-          style={styles.kb}
-          pointerEvents="box-none"
-        >
+        {/* Keyboard lift is handled in sheet content via Keyboard listeners — KAV + SafeArea bottom caused a double gap above the keyboard on iOS. */}
+        <View style={styles.kb} pointerEvents="box-none">
           <Animated.View style={[styles.sheet, { height: sheetH }, sheetStyle]}>
             <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
             <View style={styles.sheetInner}>
@@ -92,12 +86,12 @@ export function Sheet({ visible, onClose, children, heightRatio = 0.92 }: Props)
                   <View style={styles.handle} />
                 </View>
               </GestureDetector>
-              <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+              <SafeAreaView edges={['left', 'right']} style={{ flex: 1 }}>
                 {children}
               </SafeAreaView>
             </View>
           </Animated.View>
-        </KeyboardAvoidingView>
+        </View>
       </GestureHandlerRootView>
     </Modal>
   )
