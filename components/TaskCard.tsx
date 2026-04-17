@@ -26,9 +26,10 @@ function formatDate(date: string): string {
 export function TaskCard({ task, onToggle, onPress }: TaskCardProps) {
   const overdue = Boolean(task.due_date && task.status !== 'completed' && task.due_date < todayIST())
   const completed = task.status === 'completed'
+  const isProject = task.task_type === 'project' && !!task.project
 
   return (
-    <Pressable style={styles.card} onPress={onPress}>
+    <Pressable style={[styles.card, isProject && styles.cardProject]} onPress={onPress}>
       <Pressable
         style={[styles.checkbox, completed && styles.checkboxDone]}
         onPress={(event) => {
@@ -43,6 +44,11 @@ export function TaskCard({ task, onToggle, onPress }: TaskCardProps) {
         <Text style={[styles.title, completed && styles.titleDone]} numberOfLines={1}>
           {task.title}
         </Text>
+        {isProject ? (
+          <View style={styles.projectPill}>
+            <Text style={styles.projectPillText}>{task.project}</Text>
+          </View>
+        ) : null}
         {task.due_date ? (
           <Text style={[styles.dueDate, overdue && styles.overdue]}>Due {formatDate(task.due_date)}</Text>
         ) : null}
@@ -85,6 +91,27 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
+  },
+  cardProject: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+  },
+  projectPill: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primaryGlow,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    marginTop: spacing.xs,
+  },
+  projectPillText: {
+    color: colors.primary,
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   checkbox: {
     width: 22,
