@@ -17,6 +17,8 @@ const baseTask = {
   priority: 'medium' as const,
   due_date: null,
   tags: ['work'],
+  task_type: 'personal' as const,
+  project: null,
   created_at: '2026-04-17',
   updated_at: '2026-04-17',
   completed_at: null,

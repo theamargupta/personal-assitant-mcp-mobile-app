@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite'
 import NetInfo from '@react-native-community/netinfo'
 import { api } from './api'
 import { logHabit } from './habits'
-import { createTask } from './tasks'
+import { createTask, type CreateTaskInput } from './tasks'
 
 export type QueueKind = 'habit_log' | 'task_create' | 'transaction_create'
 
@@ -116,7 +116,7 @@ async function runItem(item: QueuedItem): Promise<void> {
       break
     }
     case 'task_create': {
-      await createTask(item.payload as Parameters<typeof createTask>[0])
+      await createTask(item.payload as unknown as CreateTaskInput)
       break
     }
     case 'transaction_create': {
