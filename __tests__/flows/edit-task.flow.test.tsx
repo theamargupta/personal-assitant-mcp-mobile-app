@@ -3,6 +3,12 @@ jest.mock('@/lib/tasks', () => ({
   updateTaskStatus: jest.fn().mockResolvedValue(undefined),
   deleteTask: jest.fn().mockResolvedValue(undefined),
 }))
+jest.mock('@/lib/stores/projects-store', () => {
+  const reload = jest.fn()
+  const addLocalProject = jest.fn()
+  const result = { projects: [], loading: false, error: null, reload, addLocalProject }
+  return { useProjects: () => result }
+})
 
 import React from 'react'
 import { render, fireEvent, waitFor } from '@testing-library/react-native'
