@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { create } from 'zustand'
 import { fetchProjects } from '@/lib/projects'
 
@@ -44,11 +45,11 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
 }))
 
 export function useProjects() {
-  return useProjectsStore((s) => ({
-    projects: s.projects,
-    loading: s.loading,
-    error: s.error,
-    reload: () => s.loadProjects(true),
-    addLocalProject: s.addLocalProject,
-  }))
+  const projects = useProjectsStore((s) => s.projects)
+  const loading = useProjectsStore((s) => s.loading)
+  const error = useProjectsStore((s) => s.error)
+  const loadProjects = useProjectsStore((s) => s.loadProjects)
+  const addLocalProject = useProjectsStore((s) => s.addLocalProject)
+  const reload = useCallback(() => loadProjects(true), [loadProjects])
+  return { projects, loading, error, reload, addLocalProject }
 }
