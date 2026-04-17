@@ -116,3 +116,102 @@ describe('tasks CRUD', () => {
     await expect(createTask({ title: 'x' })).rejects.toThrow('nope')
   })
 })
+
+describe('tasks CRUD — categorization', () => {
+  it('createTask with task_type=project sends project in insert', async () => {
+    queueResult({
+      data: {
+        id: 't2',
+        title: 'Project task',
+        task_type: 'project',
+        project: 'sathi',
+        status: 'pending',
+        priority: 'medium',
+      },
+      error: null,
+    })
+
+    const task = await createTask({
+      title: 'Project task',
+      task_type: 'project',
+      project: 'sathi',
+    })
+
+    expect(task.task_type).toBe('project')
+    expect(task.project).toBe('sathi')
+    const inserts = getFromCalls()[0].chain.calls.filter((c) => c.method === 'insert')
+    expect(inserts[0].args[0]).toMatchObject({
+      task_type: 'project',
+      project: 'sathi',
+    })
+  })
+
+  it('createTask defaults task_type=personal and project=null', async () => {
+    queueResult({
+      data: { id: 't3', title: 'P', task_type: 'personal', project: null },
+      error: null,
+    })
+
+    await createTask({ title: 'P' })
+
+    const inserts = getFromCalls()[0].chain.calls.filter((c) => c.method === 'insert')
+    expect(inserts[0].args[0]).toMatchObject({
+      task_type: 'personal',
+      project: null,
+    })
+  })
+
+  it('createTask throws if task_type=project but project is empty/whitespace', async () => {
+    await expect(
+      createTask({ title: 'x', task_type: 'project', project: '   ' })
+    ).rejects.toThrow(/project.*required/i)
+  })
+
+  it('listTasks filters by task_type and project', async () => {
+    queueResult({ data: [], count: 0, error: null })
+    await listTasks({ task_type: 'project', project: 'sathi' })
+
+    const eqs = getFromCalls()[0].chain.calls.filter((c) => c.method === 'eq')
+    expect(eqs.some((c) => c.args[0] === 'task_type' && c.args[1] === 'project')).toBe(true)
+    expect(eqs.some((c) => c.args[0] === 'project' && c.args[1] === 'sathi')).toBe(true)
+  })
+
+  it('updateTask can change task_type from personal to project', async () => {
+    queueResult({
+      data: { id: 't1', task_type: 'project', project: 'sathi' },
+      error: null,
+    })
+
+    await updateTask('t1', { task_type: 'project', project: 'sathi' })
+    const updates = getFromCalls()[0].chain.calls.filter((c) => c.method === 'update')
+    expect(updates[0].args[0]).toMatchObject({
+      task_type: 'project',
+      project: 'sathi',
+    })
+  })
+
+  it('updateTask reverting to personal nulls project', async () => {
+    queueResult({ data: { id: 't1', task_type: 'personal' }, error: null })
+    await updateTask('t1', { task_type: 'personal' })
+
+    const updates = getFromCalls()[0].chain.calls.filter((c) => c.method === 'update')
+    expect(updates[0].args[0]).toMatchObject({
+      task_type: 'personal',
+      project: null,
+    })
+  })
+
+  it('listTasks returns task.project directly from the row', async () => {
+    queueResult({
+      data: [
+        { id: 't1', title: 'A', task_type: 'project', project: 'sathi' },
+      ],
+      count: 1,
+      error: null,
+    })
+
+    const { tasks } = await listTasks()
+    expect(tasks[0].task_type).toBe('project')
+    expect(tasks[0].project).toBe('sathi')
+  })
+})
