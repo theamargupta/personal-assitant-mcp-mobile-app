@@ -46,6 +46,7 @@ EAS:
 - SMS parsing lives in `lib/sms-parser.ts` (pure) + `lib/sms-listener.ts` (subscription). Tests required for any parser change.
 - Animations: prefer `react-native-reanimated` for worklet-driven timelines; Moti for short UI feedback.
 - Styling: inline StyleSheet, dark-first palette — base `#09090B` (from splash).
+- Tasks carry `task_type` (`'personal'|'project'`) and `project` (free-text slug, same column name in Supabase — no mapping). DB constraint `tasks_project_required_for_project_type` (migration 009) requires `project IS NOT NULL` when `task_type='project'`. Description limit: 10 000 chars. Distinct project list sourced from `pa_memory_items.project` via `lib/projects.ts` + `useProjects()` (60 s stale-while-revalidate).
 
 ## Testing
 - Jest + `@testing-library/react-native`.

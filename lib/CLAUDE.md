@@ -7,6 +7,9 @@
 - `stores/` — Zustand stores, one per domain.
 - `chat.ts` — SSE stream parsing (see `parseSseBlock.test.ts` for contract).
 
+- `tasks.ts` — exposes `task_type` + `project` with identical names on Supabase; `createTask` / `updateTask` validate `project` is present when `task_type='project'` (DB has the same CHECK constraint).
+- `projects.ts` + `stores/projects-store.ts` — DISTINCT project list from `pa_memory_items`, 60 s stale-while-revalidate. Use `useProjects()` for read + `addLocalProject()` to optimistically insert a freshly-created project name (no DB write).
+
 Rules:
 - No Supabase writes outside `queue.ts`.
 - No `console.log` of raw SMS bodies outside `__DEV__`.
