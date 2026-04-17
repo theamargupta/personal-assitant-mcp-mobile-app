@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useRouter } from 'expo-router'
 import * as Haptics from 'expo-haptics'
@@ -25,6 +25,16 @@ import { Haptic } from '@/components/ui/Haptic'
 import { EditTaskSheet } from '@/components/sheets/EditTaskSheet'
 import { colors, spacing, radius, fontSize, fontWeight, duration } from '@/constants/theme'
 import { listTasks, updateTaskStatus, deleteTask, type Task, type TaskStatus } from '@/lib/tasks'
+import { useProjects } from '@/lib/stores/projects-store'
+
+type CategoryFilter =
+  | { kind: 'all' }
+  | { kind: 'personal' }
+  | { kind: 'project'; project: string }
+
+function categoryKey(c: CategoryFilter): string {
+  return c.kind === 'project' ? `project-${c.project}` : c.kind
+}
 
 const TAB_BAR_CLEARANCE = 170
 const FILTERS = ['All', 'Pending', 'In Progress', 'Completed'] as const
@@ -64,7 +74,9 @@ const BUCKET_ORDER = ['Overdue', 'Today', 'This week', 'Later', 'No date', 'Comp
 
 export default function TasksScreen() {
   const router = useRouter()
+  const { projects, reload: reloadProjects } = useProjects()
   const [activeFilter, setActiveFilter] = useState<FilterOption>('All')
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>({ kind: 'all' })
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState<Task | null>(null)
@@ -73,7 +85,15 @@ export default function TasksScreen() {
     setLoading(true)
     try {
       const status = toStatus(activeFilter)
-      const result = await listTasks(status ? { status, limit: 200 } : { limit: 200 })
+      const params: Parameters<typeof listTasks>[0] = { limit: 200 }
+      if (status) params.status = status
+      if (categoryFilter.kind === 'personal') {
+        params.task_type = 'personal'
+      } else if (categoryFilter.kind === 'project') {
+        params.task_type = 'project'
+        params.project = categoryFilter.project
+      }
+      const result = await listTasks(params)
       setTasks(result.tasks)
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to load tasks')
@@ -82,10 +102,14 @@ export default function TasksScreen() {
     }
   }
 
+  useEffect(() => {
+    reloadProjects()
+  }, [reloadProjects])
+
   useFocusEffect(
     useCallback(() => {
       loadData()
-    }, [activeFilter])
+    }, [activeFilter, categoryFilter])
   )
 
   const handleToggle = async (task: Task) => {
@@ -183,6 +207,37 @@ export default function TasksScreen() {
                 onPress={() => setActiveFilter(item)}
               >
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>{item}</Text>
+              </Haptic>
+            )
+          })}
+        </ScrollView>
+      </View>
+
+      <View style={styles.filterWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {(
+            [
+              { kind: 'all' } as const,
+              { kind: 'personal' } as const,
+              ...projects.map((p) => ({ kind: 'project' as const, project: p })),
+            ]
+          ).map((c) => {
+            const key = categoryKey(c)
+            const active = categoryKey(categoryFilter) === key
+            const label = c.kind === 'all' ? 'All' : c.kind === 'personal' ? 'Personal' : c.project
+            return (
+              <Haptic
+                haptic="selection"
+                key={key}
+                testID={`category-chip-${key}`}
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => setCategoryFilter(c)}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
               </Haptic>
             )
           })}
