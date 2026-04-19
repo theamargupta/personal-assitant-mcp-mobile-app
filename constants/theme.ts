@@ -11,6 +11,8 @@ export const colors = {
   primary: '#8B5CF6',      // violet-500
   primaryDim: '#6D28D9',   // violet-700
   primaryGlow: 'rgba(139, 92, 246, 0.15)',
+  brandLime: '#c8ff00',
+  brandLimeGlow: 'rgba(200, 255, 0, 0.15)',
 
   // Semantic
   expense: '#F43F5E',      // rose-500

@@ -3,8 +3,23 @@ import NetInfo from '@react-native-community/netinfo'
 import { api } from './api'
 import { logHabit } from './habits'
 import { createTask, type CreateTaskInput } from './tasks'
+import {
+  addSubtask,
+  deleteSubtask,
+  reorderSubtasks,
+  updateSubtask,
+  type AddSubtaskInput,
+  type UpdateSubtaskPatch,
+} from './subtasks'
 
-export type QueueKind = 'habit_log' | 'task_create' | 'transaction_create'
+export type QueueKind =
+  | 'habit_log'
+  | 'task_create'
+  | 'transaction_create'
+  | 'subtask_create'
+  | 'subtask_update'
+  | 'subtask_delete'
+  | 'subtask_reorder'
 
 export interface QueuedItem {
   id: number
@@ -122,6 +137,28 @@ async function runItem(item: QueuedItem): Promise<void> {
     case 'transaction_create': {
       await api.createTransaction(
         item.payload as unknown as Parameters<typeof api.createTransaction>[0]
+      )
+      break
+    }
+    case 'subtask_create': {
+      await addSubtask(item.payload as unknown as AddSubtaskInput)
+      break
+    }
+    case 'subtask_update': {
+      const { subtask_id, ...patch } = item.payload as unknown as {
+        subtask_id: string
+      } & UpdateSubtaskPatch
+      await updateSubtask(subtask_id, patch)
+      break
+    }
+    case 'subtask_delete': {
+      await deleteSubtask(item.payload.subtask_id as string)
+      break
+    }
+    case 'subtask_reorder': {
+      await reorderSubtasks(
+        item.payload.parent_task_id as string,
+        item.payload.ordered_subtask_ids as string[]
       )
       break
     }

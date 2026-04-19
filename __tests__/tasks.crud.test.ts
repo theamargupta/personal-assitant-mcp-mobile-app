@@ -7,6 +7,7 @@ import {
 } from './mocks/supabase'
 import {
   createTask,
+  getTask,
   listTasks,
   updateTask,
   updateTaskStatus,
@@ -64,6 +65,24 @@ describe('tasks CRUD', () => {
     expect(result.total).toBe(2)
     expect(result.tasks).toHaveLength(2)
     expect(result.tasks[0].title).toBe('A')
+  })
+
+  it('getTask fetches a single row scoped to the user', async () => {
+    queueResult({
+      data: { id: 't1', title: 'A', status: 'pending', priority: 'medium' },
+      error: null,
+    })
+
+    const task = await getTask('t1')
+
+    expect(task?.id).toBe('t1')
+    const chain = getFromCalls()[0].chain
+    const selects = chain.calls.filter((c) => c.method === 'select')
+    const eqs = chain.calls.filter((c) => c.method === 'eq')
+    expect(selects[0].args[0]).toBe('*')
+    expect(eqs.some((c) => c.args[0] === 'id' && c.args[1] === 't1')).toBe(true)
+    expect(eqs.some((c) => c.args[0] === 'user_id')).toBe(true)
+    expect(chain.calls.some((c) => c.method === 'single' || c.method === 'maybeSingle')).toBe(true)
   })
 
   it('updateTask patches the row', async () => {

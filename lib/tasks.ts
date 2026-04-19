@@ -101,6 +101,19 @@ export async function listTasks(
   return { tasks: (data || []) as Task[], total: count || 0 }
 }
 
+export async function getTask(id: string): Promise<Task | null> {
+  const userId = await getUserId()
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (error) throw new Error((error as { message?: string }).message || 'getTask failed')
+  return (data as Task | null) || null
+}
+
 export async function updateTaskStatus(taskId: string, status: TaskStatus): Promise<Task> {
   const userId = await getUserId()
   const updates: Record<string, unknown> = {

@@ -1,3 +1,5 @@
+const mockPush = jest.fn()
+
 jest.mock('@/lib/tasks', () => ({
   listTasks: jest.fn(),
   updateTaskStatus: jest.fn(),
@@ -12,7 +14,7 @@ jest.mock('@/lib/stores/projects-store', () => ({
     addLocalProject: jest.fn(),
   }),
 }))
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }))
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }))
 jest.mock('@react-navigation/native', () => {
   const { useEffect } = require('react')
   return {
@@ -32,6 +34,7 @@ const mockList = listTasks as jest.Mock
 
 describe('TasksScreen — category filter', () => {
   beforeEach(() => {
+    mockPush.mockClear()
     mockList.mockReset()
     mockList.mockResolvedValue({ tasks: [], total: 0 })
   })
@@ -63,5 +66,34 @@ describe('TasksScreen — category filter', () => {
       expect(args.task_type).toBe('project')
       expect(args.project).toBe('sathi')
     })
+  })
+
+  it('pressing a task card navigates to the task detail route', async () => {
+    mockList.mockResolvedValue({
+      tasks: [
+        {
+          id: 't1',
+          title: 'Open details',
+          description: null,
+          status: 'pending',
+          priority: 'medium',
+          due_date: null,
+          tags: [],
+          task_type: 'personal',
+          project: null,
+          created_at: '2026-04-17T00:00:00.000Z',
+          updated_at: '2026-04-17T00:00:00.000Z',
+          completed_at: null,
+        },
+      ],
+      total: 1,
+    })
+
+    const { getByText } = render(<TasksScreen />)
+    await waitFor(() => expect(getByText('Open details')).toBeTruthy())
+
+    fireEvent.press(getByText('Open details'))
+
+    expect(mockPush).toHaveBeenCalledWith('/task/t1')
   })
 })

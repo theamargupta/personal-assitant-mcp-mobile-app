@@ -1,4 +1,4 @@
-import { Platform } from 'react-native'
+import { PermissionsAndroid, Platform } from 'react-native'
 import { parseSms, isPaymentSms } from './sms-parser'
 import { api } from './api'
 
@@ -6,6 +6,8 @@ import { api } from './api'
 // to avoid crashes in Expo Go where they're not available.
 
 let notificationsModule: typeof import('expo-notifications') | null = null
+let permissionGranted = false
+let hasWarnedMissingPermission = false
 
 async function getNotifications() {
   if (!notificationsModule) {
@@ -14,6 +16,8 @@ async function getNotifications() {
       notificationsModule.setNotificationHandler({
         handleNotification: async () => ({
           shouldShowAlert: true,
+          shouldShowBanner: true,
+          shouldShowList: true,
           shouldPlaySound: true,
           shouldSetBadge: true,
         }),
@@ -25,7 +29,33 @@ async function getNotifications() {
   return notificationsModule
 }
 
-export async function requestPermissions(): Promise<boolean> {
+function warnMissingSmsPermission() {
+  if (!__DEV__ || hasWarnedMissingPermission) return
+  hasWarnedMissingPermission = true
+  console.warn('SMS permissions not granted; skipping SMS polling')
+}
+
+export async function requestSmsPermissions(): Promise<boolean> {
+  if (Platform.OS !== 'android') return false
+
+  try {
+    const smsPermissions = [
+      PermissionsAndroid.PERMISSIONS.READ_SMS,
+      PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
+    ]
+    const results = await PermissionsAndroid.requestMultiple(smsPermissions)
+    permissionGranted = smsPermissions.every(
+      (permission) => results[permission] === PermissionsAndroid.RESULTS.GRANTED
+    )
+    return permissionGranted
+  } catch {
+    permissionGranted = false
+    console.warn('SMS permissions not available')
+    return false
+  }
+}
+
+export async function requestNotificationPermissions(): Promise<boolean> {
   if (Platform.OS !== 'android') return false
 
   try {
@@ -39,12 +69,22 @@ export async function requestPermissions(): Promise<boolean> {
   }
 }
 
+export async function requestPermissions(): Promise<boolean> {
+  if (Platform.OS !== 'android') return false
+
+  const smsGranted = await requestSmsPermissions()
+  await requestNotificationPermissions()
+  return smsGranted
+}
+
 export async function sendCategorizeNotification(
   transactionId: string,
   amount: number,
   merchant: string,
   sourceApp: string
 ) {
+  if (Platform.OS !== 'android') return
+
   try {
     const Notifications = await getNotifications()
     if (!Notifications) return
@@ -62,6 +102,8 @@ export async function sendCategorizeNotification(
 }
 
 export async function processIncomingSms(sender: string, body: string) {
+  if (Platform.OS !== 'android') return
+
   if (!isPaymentSms(sender, body)) return
 
   const parsed = parseSms(sender, body)
@@ -90,8 +132,18 @@ export async function processIncomingSms(sender: string, body: string) {
 let lastCheckedTimestamp = Date.now()
 
 export function startSmsPolling() {
+  if (Platform.OS !== 'android') return () => undefined
+  if (!permissionGranted) {
+    warnMissingSmsPermission()
+    return () => undefined
+  }
+
   // SMS reading only works in dev builds, not Expo Go
   const interval = setInterval(() => {
+    if (!permissionGranted) {
+      warnMissingSmsPermission()
+      return
+    }
     checkRecentSms()
   }, 30000)
 
@@ -99,6 +151,12 @@ export function startSmsPolling() {
 }
 
 function checkRecentSms() {
+  if (Platform.OS !== 'android') return
+  if (!permissionGranted) {
+    warnMissingSmsPermission()
+    return
+  }
+
   try {
     const SmsAndroid = require('react-native-get-sms-android').default
     const filter = {
@@ -134,6 +192,8 @@ function checkRecentSms() {
 }
 
 export async function registerBackgroundSmsCheck() {
+  if (Platform.OS !== 'android') return
+
   try {
     const TaskManager = require('expo-task-manager')
     const SMS_TASK_NAME = 'PA_SMS_LISTENER'

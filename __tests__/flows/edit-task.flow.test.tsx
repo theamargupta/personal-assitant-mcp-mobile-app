@@ -83,13 +83,17 @@ describe('EditTaskSheet flow', () => {
     const onMutated = jest.fn()
     const onClose = jest.fn()
 
-    const { getByText } = render(
+    const { findByTestId, getByText } = render(
       <EditTaskSheet task={baseTask} onClose={onClose} onMutated={onMutated} />
     )
 
     fireEvent.press(getByText('Delete'))
+    fireEvent.press(await findByTestId('confirm-dialog-confirm'))
 
-    await waitFor(() => expect(deleteTask).toHaveBeenCalledWith('t1'))
+    await waitFor(() => {
+      expect(deleteTask).toHaveBeenCalledTimes(1)
+      expect(deleteTask).toHaveBeenCalledWith('t1')
+    })
     expect(onMutated).toHaveBeenCalledTimes(1)
     expect(onClose).toHaveBeenCalledTimes(1)
   })

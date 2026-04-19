@@ -108,6 +108,7 @@ export function ConfirmDialog({
               </Haptic>
               <Haptic
                 haptic={tone === 'danger' ? 'heavy' : 'success'}
+                testID="confirm-dialog-confirm"
                 onPress={() => {
                   onConfirm()
                 }}
